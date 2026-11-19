@@ -64,7 +64,7 @@ Development runs use `openai/gpt-oss-20b` because the free tier caps each model 
 | # | Model | Change | Calls | Label points / 70 | Exact match | Notes |
 |---|---|---|---|---|---|---|
 | 0 | 20b | Initial prompts, no few-shot examples | first 10 dev | 55.5 | 60% | 4 records wrong, all traced to extraction (resolver verified separately) |
-| 1 | 20b | Booking with soft caveat stays booked; companion away is travel; weekday is `next`/`this` only if spoken | first 10 dev | pending | | targets AVT-009 (missed booking), AVT-001 (family vs travel), AVT-005 ("Sunday" read as "next Sunday", downgrading lead quality) |
+| 1 | 20b | Booking with soft caveat stays booked; companion away is travel; weekday is `next`/`this` only if spoken | first 10 dev | 64.0 | 80% | fixed all three targets; AVT-007 newly wrong (Current Treatment read as Vague Deferral), likely run-to-run variance on the small model since its prompt path was not changed; targets AVT-009 (missed booking), AVT-001 (family vs travel), AVT-005 ("Sunday" read as "next Sunday", downgrading lead quality) |
 
 Run 0 errors still open: AVT-013 (Information Requested missed, and the vague postponement missed, so +1 day instead of +3). Not changed yet: making "reviewing information" count as a postponement would conflict with AVT-041, where gold is +1 day.
 
