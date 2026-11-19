@@ -2,6 +2,7 @@ PY ?= .venv/bin/python
 ids = $(shell paste -sd, data/splits/$(1)_ids.txt)
 
 N ?= 10
+MODEL ?= openai/gpt-oss-120b
 
 .PHONY: setup test smoke dev holdout predict synthetic
 
@@ -12,7 +13,7 @@ test:
 	$(PY) -m pytest
 
 smoke:  ## task 1, first N dev calls (default 10); rerun to resume
-	$(PY) -m call_labeling.run_labeling --input data/calls_input.jsonl --output outputs/runs/smoke.jsonl --concurrency 1 --ids "$(call ids,dev)" --limit $(N)
+	$(PY) -m call_labeling.run_labeling --input data/calls_input.jsonl --output outputs/runs/smoke.jsonl --concurrency 1 --ids "$(call ids,dev)" --limit $(N) --model $(MODEL)
 	$(PY) -m evaluation.eval_labeling --pred outputs/runs/smoke.jsonl --split dev --completed-only
 
 dev:  ## task 1, iterate here; rerun to resume after a stop

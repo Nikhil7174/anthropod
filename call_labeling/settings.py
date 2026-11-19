@@ -30,3 +30,9 @@ class Settings:
 
 
 SETTINGS = Settings()
+
+# Groq list prices (input, output) in USD per 1M tokens, for cost reporting when --model is overridden.
+PRICES_PER_M = {
+    "openai/gpt-oss-120b": (0.15, 0.60),
+    "openai/gpt-oss-20b": (0.075, 0.30),
+}

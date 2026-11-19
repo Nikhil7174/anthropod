@@ -23,7 +23,7 @@ from pathlib import Path
 from .input_records import load_calls, write_jsonl
 from .label_one_call import label_record
 from .llm_client import GroqJSONClient, LLMError, QuotaExhausted
-from .settings import SETTINGS
+from .settings import PRICES_PER_M, SETTINGS
 
 log = logging.getLogger("run")
 
@@ -59,6 +59,8 @@ def main() -> int:
     ap.add_argument("--output", required=True, help="prediction JSONL (exactly five keys per line)")
     ap.add_argument("--debug", help="per-record evidence and trace JSONL (default: outputs/debug/<output stem>.jsonl)")
     ap.add_argument("--concurrency", type=int, default=SETTINGS.concurrency)
+    ap.add_argument("--model", default=SETTINGS.model,
+                    help=f"Groq model id (default and submission model: {SETTINGS.model}); recorded in the meta file")
     ap.add_argument("--ids", help="comma-separated transcript_ids to run (development only)")
     ap.add_argument("--limit", type=int, help="run only the first N records after --ids filtering")
     ap.add_argument("--fresh", action="store_true", help="ignore the checkpoint and relabel every record")
@@ -67,7 +69,10 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     _load_dotenv()
-    settings = replace(SETTINGS, concurrency=args.concurrency)
+    settings = replace(SETTINGS, concurrency=args.concurrency, model=args.model)
+    if args.model in PRICES_PER_M:
+        settings = replace(settings, price_input_per_m=PRICES_PER_M[args.model][0],
+                           price_output_per_m=PRICES_PER_M[args.model][1])
 
     records = load_calls(args.input)
     if args.ids:
