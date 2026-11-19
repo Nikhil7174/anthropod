@@ -6,6 +6,7 @@ import json
 import sys
 
 from call_labeling import run_labeling
+from call_labeling.llm_client import QuotaExhausted
 from call_labeling.output_validator import fallback_prediction
 
 
@@ -46,6 +47,24 @@ def test_rerun_resumes_and_retries_fallbacks(monkeypatch, tmp_path):
     second = _run(monkeypatch, tmp_path)
     assert labeled == ["T-0", "T-1", "T-2", "T-1"]  # only the fallback is retried
     assert [p["transcript_id"] for p in second] == ["T-0", "T-1", "T-2"]
+
+
+def test_daily_quota_stops_run_and_keeps_finished_records(monkeypatch, tmp_path):
+    _write_calls(tmp_path / "calls.jsonl", 4)
+
+    def fake_label(client, record):
+        if record.transcript_id == "T-2":
+            raise QuotaExhausted("tokens per day")
+        return fallback_prediction(record.transcript_id, record.call_started_at), {
+            "transcript_id": record.transcript_id, "seconds": 0.0}
+
+    monkeypatch.setattr(run_labeling, "GroqJSONClient", lambda settings: object())
+    monkeypatch.setattr(run_labeling, "label_record", fake_label)
+    out = tmp_path / "pred.jsonl"
+    monkeypatch.setattr(sys, "argv", ["run_labeling", "--input", str(tmp_path / "calls.jsonl"), "--output", str(out),
+                                      "--debug", str(tmp_path / "debug.jsonl"), "--concurrency", "1"])
+    assert run_labeling.main() == run_labeling.STOPPED_EARLY
+    assert [json.loads(line)["transcript_id"] for line in out.read_text().splitlines()] == ["T-0", "T-1"]
 
 
 def test_limit_caps_the_run(monkeypatch, tmp_path):

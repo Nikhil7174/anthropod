@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .input_records import load_calls, write_jsonl
 from .label_one_call import label_record
-from .llm_client import GroqJSONClient, LLMError
+from .llm_client import GroqJSONClient, LLMError, QuotaExhausted
 from .settings import SETTINGS
 
 log = logging.getLogger("run")
@@ -91,12 +91,19 @@ def main() -> int:
 
     t0 = time.monotonic()
     lock = threading.Lock()
+    stop = threading.Event()
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     interrupted = False
 
     with open(checkpoint_path, "w" if args.fresh else "a", encoding="utf-8") as ckpt:
         def work(record):
-            pred, debug = label_record(client, record)
+            if stop.is_set():
+                return
+            try:
+                pred, debug = label_record(client, record)
+            except QuotaExhausted:
+                stop.set()
+                raise
             with lock:
                 results[record.transcript_id] = (pred, debug)
                 ckpt.write(json.dumps({"prediction": pred, "debug": debug}, ensure_ascii=False) + "\n")
@@ -111,9 +118,10 @@ def main() -> int:
             for f in as_completed(futures):
                 f.result()
             pool.shutdown()
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, QuotaExhausted) as exc:
             interrupted = True
-            log.warning("interrupted: writing the %d finished records; rerun the same command to resume", len(results))
+            reason = "interrupted" if isinstance(exc, KeyboardInterrupt) else f"stopping, {exc}"
+            log.warning("%s: writing the %d finished records; rerun the same command to resume", reason, len(results))
             pool.shutdown(wait=False, cancel_futures=True)
     wall = time.monotonic() - t0
 
@@ -145,10 +153,14 @@ def main() -> int:
     log.info("wrote %s (%d/%d records, %d fallbacks) in %.1fs; tokens in/out %d/%d; ~$%.4f",
              args.output, meta["records"], len(records), meta["fallbacks"], wall, prompt, completion,
              meta["estimated_cost_usd"])
-    if interrupted:
-        os._exit(130)  # worker threads may be asleep in backoff; do not wait for them
-    return 0
+    return STOPPED_EARLY if interrupted else 0
 
+
+STOPPED_EARLY = 3
 
 if __name__ == "__main__":
-    sys.exit(main())
+    code = main()
+    if code == STOPPED_EARLY:
+        logging.shutdown()
+        os._exit(code)  # worker threads may be asleep in backoff; do not wait for them
+    sys.exit(code)

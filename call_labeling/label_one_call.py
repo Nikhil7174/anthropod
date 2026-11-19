@@ -10,7 +10,7 @@ from .evidence_extraction import extract
 from .input_records import CallRecord
 from .label_rules import combine
 from .label_vocabulary import UNABLE
-from .llm_client import GroqJSONClient
+from .llm_client import GroqJSONClient, QuotaExhausted
 from .output_validator import OUTPUT_KEYS, contract_errors, fallback_prediction
 from .transcript_text import customer_word_count, parse_turns
 
@@ -56,6 +56,8 @@ def label_record(client: Optional[GroqJSONClient], record: CallRecord) -> tuple[
         errors = contract_errors(pred)
         if errors:
             raise ValueError(f"contract violation: {errors}")
+    except QuotaExhausted:
+        raise  # every later record would fail the same way; let the runner stop
     except Exception as exc:  # per-record isolation: one bad record must not sink the run
         log.error("%s: falling back (%s: %s)", record.transcript_id, type(exc).__name__, exc)
         pred = fallback_prediction(record.transcript_id, record.call_started_at, record.timezone)

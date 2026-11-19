@@ -28,6 +28,10 @@ class LLMError(RuntimeError):
     """Extraction failed after all retries."""
 
 
+class QuotaExhausted(LLMError):
+    """A daily quota is used up. Retrying within the run cannot help, so the run should stop."""
+
+
 @dataclass
 class Usage:
     prompt_tokens: int = 0
@@ -126,6 +130,8 @@ class GroqJSONClient:
             try:
                 resp = self._client.chat.completions.create(**self._request(messages, schema, name))
             except _TRANSIENT as exc:
+                if isinstance(exc, groq.RateLimitError) and "per day" in str(exc):
+                    raise QuotaExhausted(str(exc)[:300]) from exc
                 usage.retries += 1
                 self._backoff(attempt, exc)
                 continue
