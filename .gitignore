@@ -1,0 +1,17 @@
+plan.md
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets
+.env
+
+# Source workbook (derived JSONL in data/ is committed)
+*.xlsx
+
+# Run artefacts other than the submission file
+outputs/debug*.jsonl
+outputs/runs/
