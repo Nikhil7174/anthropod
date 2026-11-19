@@ -16,7 +16,7 @@ class Settings:
     structured_output: str = "strict"  # "strict" json_schema; "json_object" for models without it
 
     request_timeout_s: float = 90.0
-    max_attempts: int = 6
+    max_attempts: int = 10  # generous: low-TPM tiers throttle often, and retry-after paces us
     backoff_base_s: float = 2.0
     backoff_cap_s: float = 60.0
     concurrency: int = 4

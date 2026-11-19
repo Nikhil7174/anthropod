@@ -31,7 +31,7 @@ These are pinned in [`fde/labeler/config.py`](fde/labeler/config.py) and copied 
 | Output format | `json_schema` with `strict: true`, generated from the Pydantic models |
 | Calls per record | 2: call facts and callback |
 | Request timeout | 90 s |
-| Retries | Up to 6 attempts on 429, 5xx, timeouts and connection errors. Backoff is exponential (2 s base, 60 s cap) with jitter and honours `retry-after`. |
+| Retries | Up to 10 attempts on 429, 5xx, timeouts and connection errors. Backoff is exponential (2 s base, 60 s cap) with jitter and honours `retry-after`. |
 | JSON parsing | Code fences or surrounding prose are stripped, then Pydantic validation runs. One repair re-ask is made on invalid JSON or a Groq `json_validate_failed` error. |
 | Concurrency | 4 records in parallel (`--concurrency`) |
 
