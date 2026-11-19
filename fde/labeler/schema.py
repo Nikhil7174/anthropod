@@ -84,3 +84,84 @@ class CallbackExtraction(_Extraction):
     options: list[TimeExpr] = Field(default_factory=list)
     vague_postponement: bool = False
     evidence: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- call facts (Call A)
+
+Blocker = Literal["family", "cost", "travel", "current_treatment", "treatment_concern", "info_review"]
+
+
+class Validity(_Extraction):
+    test_enquiry: bool = False
+    wrong_contact: bool = False
+    no_pain_need: bool = False
+    patient_under_15: bool = False
+    outside_service_area: bool = False
+    evidence: Optional[str] = None
+
+
+class Refusal(_Extraction):
+    final_refusal: bool = False
+    do_not_contact: bool = False
+    evidence: Optional[str] = None
+
+
+class Booking(_Extraction):
+    slot_confirmed_by_both: bool = False
+    slot: Optional[TimeExpr] = None
+    modality: Optional[Literal["clinic", "online"]] = None
+    replaces_existing_or_missed: bool = False
+    evidence: Optional[str] = None
+
+
+class Blockers(_Extraction):
+    final_unresolved: list[Blocker] = Field(default_factory=list)
+    primary: Optional[Blocker] = None
+    evidence: Optional[str] = None
+
+    @field_validator("final_unresolved", mode="before")
+    @classmethod
+    def _drop_unknown(cls, v):
+        allowed = set(Blocker.__args__)
+        return [b for b in (v or []) if isinstance(b, str) and b in allowed]
+
+    @field_validator("primary", mode="before")
+    @classmethod
+    def _primary_known(cls, v):
+        return v if v in Blocker.__args__ else None
+
+
+class Readiness(_Extraction):
+    pain_need_established: bool = False
+    need_or_willingness_unclear: bool = False
+    exploratory_only: bool = False
+    defers_over_30_days: bool = False
+    explicit_visit_commitment: bool = False
+    visit_when: Optional[TimeExpr] = None
+    evidence: Optional[str] = None
+
+
+class Discussion(_Extraction):
+    meaningful_relevant_discussion: bool = False
+    call_cut_off: bool = False
+
+
+class CallFacts(_Extraction):
+    validity: Validity = Field(default_factory=Validity)
+    refusal: Refusal = Field(default_factory=Refusal)
+    booking: Booking = Field(default_factory=Booking)
+    blockers: Blockers = Field(default_factory=Blockers)
+    readiness: Readiness = Field(default_factory=Readiness)
+    discussion: Discussion = Field(default_factory=Discussion)
+
+
+# --------------------------------------------------------------------------- output contract
+
+class Prediction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    transcript_id: str
+    disposition: str
+    sub_disposition: str
+    lead_quality: str
+    next_call_at: Optional[str]
