@@ -1,7 +1,9 @@
 PY ?= .venv/bin/python
 ids = $(shell paste -sd, data/splits/$(1)_ids.txt)
 
-.PHONY: setup test dev holdout predict synthetic
+N ?= 10
+
+.PHONY: setup test smoke dev holdout predict synthetic
 
 setup:
 	python3.11 -m venv .venv && $(PY) -m pip install -r requirements.txt
@@ -9,9 +11,13 @@ setup:
 test:
 	$(PY) -m pytest
 
-dev:  ## task 1, iterate here
+smoke:  ## task 1, first N dev calls (default 10); rerun to resume
+	$(PY) -m call_labeling.run_labeling --input data/calls_input.jsonl --output outputs/runs/smoke.jsonl --concurrency 1 --ids "$(call ids,dev)" --limit $(N)
+	$(PY) -m evaluation.eval_labeling --pred outputs/runs/smoke.jsonl --split dev --completed-only
+
+dev:  ## task 1, iterate here; rerun to resume after a stop
 	$(PY) -m call_labeling.run_labeling --input data/calls_input.jsonl --output outputs/runs/dev.jsonl --ids "$(call ids,dev)"
-	$(PY) -m evaluation.eval_labeling --pred outputs/runs/dev.jsonl --split dev
+	$(PY) -m evaluation.eval_labeling --pred outputs/runs/dev.jsonl --split dev --completed-only
 
 holdout:  ## task 1, once, after the prompts are frozen
 	$(PY) -m call_labeling.run_labeling --input data/calls_input.jsonl --output outputs/runs/holdout.jsonl --ids "$(call ids,holdout)"

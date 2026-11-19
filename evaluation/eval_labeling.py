@@ -73,6 +73,8 @@ def main() -> None:
     ap.add_argument("--gold", default="data/gold_labels.jsonl")
     ap.add_argument("--split", choices=("all", "dev", "holdout"), default="all")
     ap.add_argument("--splits", default="data/splits", help="directory with dev_ids.txt and holdout_ids.txt")
+    ap.add_argument("--completed-only", action="store_true",
+                    help="score only records present in --pred (for partial runs); default counts missing as wrong")
     args = ap.parse_args()
 
     golds = {g["transcript_id"]: g for g in iter_jsonl(args.gold)}
@@ -80,7 +82,9 @@ def main() -> None:
         ids = (Path(args.splits) / f"{args.split}_ids.txt").read_text().split()
         golds = {k: v for k, v in golds.items() if k in set(ids)}
     preds = {p["transcript_id"]: p for p in iter_jsonl(args.pred)}
-    print(f"[{args.split}] " + report(score(preds, golds)))
+    if args.completed_only:
+        golds = {k: v for k, v in golds.items() if k in preds}
+    print(f"[{args.split}{', completed only' if args.completed_only else ''}] " + report(score(preds, golds)))
 
 
 if __name__ == "__main__":

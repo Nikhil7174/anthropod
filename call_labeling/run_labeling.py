@@ -16,7 +16,7 @@ import os
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
 from pathlib import Path
 
@@ -37,6 +37,22 @@ def _load_dotenv(path: Path = Path(".env")) -> None:
             os.environ.setdefault(key.strip(), value.strip().strip("'\""))
 
 
+def _load_checkpoint(path: Path, wanted: set[str]) -> dict[str, tuple[dict, dict]]:
+    """Finished records from an earlier run. Fallbacks are dropped so they get another try."""
+    done: dict[str, tuple[dict, dict]] = {}
+    if not path.exists():
+        return done
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue  # a line cut short by a kill
+        tid = row["prediction"]["transcript_id"]
+        if tid in wanted and not row["debug"].get("fallback"):
+            done[tid] = (row["prediction"], row["debug"])
+    return done
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--input", required=True, help="input JSONL")
@@ -44,6 +60,8 @@ def main() -> int:
     ap.add_argument("--debug", help="per-record evidence and trace JSONL (default: outputs/debug/<output stem>.jsonl)")
     ap.add_argument("--concurrency", type=int, default=SETTINGS.concurrency)
     ap.add_argument("--ids", help="comma-separated transcript_ids to run (development only)")
+    ap.add_argument("--limit", type=int, help="run only the first N records after --ids filtering")
+    ap.add_argument("--fresh", action="store_true", help="ignore the checkpoint and relabel every record")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -55,36 +73,54 @@ def main() -> int:
     if args.ids:
         wanted = {i.strip() for i in args.ids.split(",")}
         records = [r for r in records if r.transcript_id in wanted]
-    log.info("loaded %d records; model=%s", len(records), settings.model)
+    if args.limit:
+        records = records[: args.limit]
+
+    debug_path = Path(args.debug) if args.debug else Path("outputs/debug") / (Path(args.output).stem + ".jsonl")
+    checkpoint_path = debug_path.with_suffix(".checkpoint.jsonl")
+    results = {} if args.fresh else _load_checkpoint(checkpoint_path, {r.transcript_id for r in records})
+    todo = [r for r in records if r.transcript_id not in results]
+    log.info("%d records; %d already in checkpoint, %d to label; model=%s",
+             len(records), len(results), len(todo), settings.model)
 
     try:
-        client = GroqJSONClient(settings)
+        client = GroqJSONClient(settings) if todo else None
     except LLMError as exc:
         log.error("%s", exc)
         return 2
 
     t0 = time.monotonic()
-    done = 0
     lock = threading.Lock()
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    interrupted = False
 
-    def work(record):
-        nonlocal done
-        pred, debug = label_record(client, record)
-        with lock:
-            done += 1
-            log.info("[%d/%d] %s %s/%s in %.1fs%s", done, len(records), record.transcript_id,
-                     pred["disposition"], pred["sub_disposition"], debug["seconds"],
-                     " (FALLBACK)" if debug.get("fallback") else "")
-        return pred, debug
+    with open(checkpoint_path, "w" if args.fresh else "a", encoding="utf-8") as ckpt:
+        def work(record):
+            pred, debug = label_record(client, record)
+            with lock:
+                results[record.transcript_id] = (pred, debug)
+                ckpt.write(json.dumps({"prediction": pred, "debug": debug}, ensure_ascii=False) + "\n")
+                ckpt.flush()
+                log.info("[%d/%d] %s %s/%s in %.1fs%s", len(results), len(records), record.transcript_id,
+                         pred["disposition"], pred["sub_disposition"], debug["seconds"],
+                         " (FALLBACK)" if debug.get("fallback") else "")
 
-    with ThreadPoolExecutor(max_workers=max(1, settings.concurrency)) as pool:
-        results = list(pool.map(work, records))  # preserves input order
+        pool = ThreadPoolExecutor(max_workers=max(1, settings.concurrency))
+        futures = [pool.submit(work, r) for r in todo]
+        try:
+            for f in as_completed(futures):
+                f.result()
+            pool.shutdown()
+        except KeyboardInterrupt:
+            interrupted = True
+            log.warning("interrupted: writing the %d finished records; rerun the same command to resume", len(results))
+            pool.shutdown(wait=False, cancel_futures=True)
     wall = time.monotonic() - t0
 
-    predictions = [p for p, _ in results]
-    debug_rows = [d for _, d in results]
+    finished = [results[r.transcript_id] for r in records if r.transcript_id in results]  # input order
+    predictions = [p for p, _ in finished]
+    debug_rows = [d for _, d in finished]
     write_jsonl(args.output, predictions)
-    debug_path = Path(args.debug) if args.debug else Path("outputs/debug") / (Path(args.output).stem + ".jsonl")
     write_jsonl(debug_path, debug_rows)
 
     usage = [d.get("usage", {}) for d in debug_rows]
@@ -92,6 +128,7 @@ def main() -> int:
     completion = sum(u.get("completion_tokens", 0) for u in usage)
     meta = {
         "records": len(predictions),
+        "records_requested": len(records),
         "fallbacks": sum(1 for d in debug_rows if d.get("fallback")),
         "wall_seconds": round(wall, 1),
         "mean_record_seconds": round(sum(d["seconds"] for d in debug_rows) / max(1, len(debug_rows)), 2),
@@ -105,8 +142,11 @@ def main() -> int:
         "settings": settings.as_dict(),
     }
     Path(args.output).with_suffix(".meta.json").write_text(json.dumps(meta, indent=2) + "\n")
-    log.info("wrote %s (%d records, %d fallbacks) in %.1fs; tokens in/out %d/%d; ~$%.4f",
-             args.output, meta["records"], meta["fallbacks"], wall, prompt, completion, meta["estimated_cost_usd"])
+    log.info("wrote %s (%d/%d records, %d fallbacks) in %.1fs; tokens in/out %d/%d; ~$%.4f",
+             args.output, meta["records"], len(records), meta["fallbacks"], wall, prompt, completion,
+             meta["estimated_cost_usd"])
+    if interrupted:
+        os._exit(130)  # worker threads may be asleep in backoff; do not wait for them
     return 0
 
 
