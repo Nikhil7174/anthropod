@@ -109,10 +109,12 @@ class GroqJSONClient:
         retry_after = getattr(getattr(exc, "response", None), "headers", {}).get("retry-after")
         if retry_after:
             try:
-                delay = max(delay, float(retry_after))
+                # Honour the server hint, but never park a worker longer than the cap.
+                delay = min(max(delay, float(retry_after)), s.backoff_cap_s)
             except ValueError:
                 pass
-        log.warning("transient %s (attempt %d); sleeping %.1fs", type(exc).__name__, attempt, delay)
+        log.warning("%s (attempt %d, retry-after=%s); sleeping %.1fs: %s",
+                    type(exc).__name__, attempt, retry_after, delay, str(exc)[:200])
         time.sleep(delay)
 
     def complete(self, system: str, user: str, schema: Type[T], name: str) -> tuple[T, Usage]:

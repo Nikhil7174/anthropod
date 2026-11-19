@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -45,6 +46,7 @@ def main() -> int:
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     _load_dotenv()
     settings = replace(SETTINGS, concurrency=args.concurrency)
 
@@ -61,8 +63,21 @@ def main() -> int:
         return 2
 
     t0 = time.monotonic()
+    done = 0
+    lock = threading.Lock()
+
+    def work(record):
+        nonlocal done
+        pred, debug = label_record(client, record)
+        with lock:
+            done += 1
+            log.info("[%d/%d] %s %s/%s in %.1fs%s", done, len(records), record.transcript_id,
+                     pred["disposition"], pred["sub_disposition"], debug["seconds"],
+                     " (FALLBACK)" if debug.get("fallback") else "")
+        return pred, debug
+
     with ThreadPoolExecutor(max_workers=max(1, settings.concurrency)) as pool:
-        results = list(pool.map(lambda r: label_record(client, r), records))  # preserves input order
+        results = list(pool.map(work, records))  # preserves input order
     wall = time.monotonic() - t0
 
     predictions = [p for p, _ in results]
