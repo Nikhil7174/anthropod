@@ -45,7 +45,7 @@ def write_jsonl(path: str | Path, rows: Iterable[dict]) -> None:
 
 
 def load_calls(path: str | Path) -> list[CallRecord]:
-    """Load input records, dropping any non-input keys (e.g. gold labels)."""
+    """Load input records, dropping every non-input key (labels never pass this boundary)."""
     records = [CallRecord.model_validate(row) for row in iter_jsonl(path)]
     ids = [r.transcript_id for r in records]
     dupes = {i for i in ids if ids.count(i) > 1}
