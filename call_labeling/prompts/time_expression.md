@@ -17,8 +17,8 @@ Encode what was SAID; do not compute dates. Python resolves dates from the call 
 - `today`: "today", "this evening", "later today at 6"
 - `tomorrow`; `day_after_tomorrow` ("day after tomorrow", "parso")
 - `in_days`: "in two days" (n=2)
-- `weekday`: a bare weekday ("on Friday")
-- `this_weekday`: "this Friday"; `next_weekday`: "next Friday"
+- `weekday`: a bare weekday ("on Friday", "Sunday then") — the default for any weekday
+- `this_weekday`: only when the word "this" is spoken ("this Friday"); `next_weekday`: only when the word "next" is spoken ("next Friday")
 - `next_week`: "next week" with nothing finer
 - `this_week`: "this week" alone
 - `date`: a day number ("on the 26th", "4th November")

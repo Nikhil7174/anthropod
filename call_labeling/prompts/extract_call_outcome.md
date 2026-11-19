@@ -23,16 +23,17 @@ Read ONE call transcript and report evidence-backed FACTS as JSON. Do not assign
 - `do_not_contact`: the customer explicitly asks the clinic to stop calling or remove their number. (Asking to use a different number is not this.)
 
 ### booking
-- `slot_confirmed_by_both`: true only if, by the end, BOTH sides confirm an actual consultation (in-person visit or online consultation) on a date AND at a clock time or bounded window ("Saturday 12 to 12:30", "tomorrow 11 AM"). False for: offers or available slots listed by the agent, visit intentions ("I'll try to come Saturday", "I'll come tomorrow") without an agreed time, a tentative plan to be confirmed on a later call, or the customer saying they will confirm after discussing.
+- `slot_confirmed_by_both`: true only if, by the end, BOTH sides confirm an actual consultation (in-person visit or online consultation) on a date AND at a clock time or bounded window ("Saturday 12 to 12:30", "tomorrow 11 AM"). False for: offers or available slots listed by the agent, visit intentions ("I'll try to come Saturday", "I'll come tomorrow") without an agreed time, or the customer explicitly withholding confirmation until after a discussion or a later call ("I will confirm it tomorrow after talking to my husband").
+  A slot the customer asks to book and the agent accepts ("Book it for 2 PM" / "Done") IS confirmed, even if the customer adds a soft caveat such as "if anything changes I'll call you".
 - `slot`: the confirmed consultation time as a TimeExpr; null if none.
 - `modality`: `clinic` or `online` for the confirmed slot; null if none.
 - `replaces_existing_or_missed`: the confirmed slot replaces an earlier scheduled or missed consultation.
 
 ### blockers
 `final_unresolved`: every blocker still preventing the customer from committing at the END of the call (empty if none). `primary`: the one the customer presents as the main reason at the end (null if none).
-- `family`: must discuss with, or wait for approval or a decision from, a family member (spouse, parent, child), or the patient is a family member whose own decision is pending.
+- `family`: the open step is a family member's discussion, approval or decision (spouse, parent, child), or the patient is a family member whose own decision is pending.
 - `cost`: affordability, waiting for money, payment, or insurance coverage still unresolved.
-- `travel`: travel, temporary absence (customer or patient out of town, patient away), distance or transport, work/business/office schedule, being busy until some date, or clinic days/hours not fitting — while the service remains feasible.
+- `travel`: travel, temporary absence (customer, patient or a needed companion out of town or away), distance or transport, work/business/office schedule, being busy until some date, or clinic days/hours not fitting — while the service remains feasible. Waiting for someone to return so the patient can be accompanied is travel, not family.
 - `current_treatment`: waiting to finish or assess another ongoing treatment, medication, surgery, physiotherapy or another doctor's advice before deciding.
 - `treatment_concern`: unresolved questions or mistrust about the treatment, procedure, injections/steroids, results, side effects, or the doctor's suitability/seniority.
 - `info_review`: the customer's final next step is to review specific requested information (doctor profiles, treatment details) or reports before deciding. Merely asking for the address/location does NOT count.
