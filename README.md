@@ -1,26 +1,44 @@
 # Aster Vale FDE Assignment
 
-Task 1 labels pain-clinic enrollment calls with `disposition`, `sub_disposition`, `lead_quality` and `next_call_at` under policy **assignment-v2**.
+Two tasks, two packages. Each has its own command and can be read without the other.
 
-**Design principle: the LLM reads, code decides.** The model answers small, evidence-backed questions. Deterministic Python then applies outcome precedence, the allowed label pairs, lead-quality ordering and all calendar arithmetic, so every rule in the policy is visible in code and covered by unit tests.
+| Task | What it predicts | Command |
+|---|---|---|
+| 1. Call labeling | `disposition`, `sub_disposition`, `lead_quality`, `next_call_at` | `python -m call_labeling.run_labeling` |
+| 2. Customer gender | gender, without a transformer model | `python -m customer_gender.run_gender` (not built yet) |
 
-## Run
+Task 1 is implemented under policy **assignment-v2**. The model reports evidence; Python applies the policy. Task 2 is scaffolded so its place in the repo is already obvious.
+
+## Setup
 
 ```bash
 python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt
-export GROQ_API_KEY=...            # or put GROQ_API_KEY=... in .env (gitignored)
-.venv/bin/python run.py --input data/calls.jsonl --output outputs/predictions.jsonl
+export GROQ_API_KEY=...            # or put GROQ_API_KEY=... in .env (gitignored; see .env.example)
+```
+
+## Task 1
+
+```bash
+.venv/bin/python -m call_labeling.run_labeling \
+    --input data/calls_input.jsonl --output outputs/labeling_predictions.jsonl
 ```
 
 - Input: JSONL with `transcript_id`, `call_started_at`, `timezone` and `transcript`. Any other key is dropped when the file is loaded.
-- Output: one JSON object per input, in input order, with exactly `transcript_id, disposition, sub_disposition, lead_quality, next_call_at`.
-- Side files: `outputs/debug.jsonl` holds the per-record extracted facts, evidence quotes, a decision trace and token usage. `outputs/predictions.meta.json` holds the run time, token totals, estimated cost and the exact settings used.
+- Output: one JSON object per input, in input order, with exactly those five keys: `transcript_id`, `disposition`, `sub_disposition`, `lead_quality`, `next_call_at`.
+- `outputs/debug/` holds the extracted evidence, quotes, decision trace and token usage. `outputs/labeling_predictions.meta.json` holds runtime, tokens, estimated cost and the exact settings used.
+- Reference answers live only in `data/gold_labels.jsonl`. Nothing in `call_labeling/` reads that file.
 
-The `make` targets cover the development loop: `make test`, `make dev` (dev split plus score), `make holdout`, `make predict` (all 50 plus score) and `make synthetic` (rare-label set).
+```bash
+make test        # offline tests
+make dev         # 35 dev calls, then the score
+make holdout     # 15 holdout calls, run once after the prompts are frozen
+make predict     # all 50, the submission file
+make synthetic   # rare labels that do not appear in the supplied sample
+```
 
-## Model and generation settings
+### Model and generation settings
 
-These are pinned in [`fde/labeler/config.py`](fde/labeler/config.py) and copied into every run's meta file.
+Pinned in [`call_labeling/settings.py`](call_labeling/settings.py) and copied into every run's meta file.
 
 | Setting | Value |
 |---|---|
@@ -29,60 +47,80 @@ These are pinned in [`fde/labeler/config.py`](fde/labeler/config.py) and copied 
 | reasoning_effort | `medium` (reasoning text not returned) |
 | max_completion_tokens | 8192 (includes reasoning) |
 | Output format | `json_schema` with `strict: true`, generated from the Pydantic models |
-| Calls per record | 2: call facts and callback |
+| Calls per record | 2: call outcome, then callback |
 | Request timeout | 90 s |
 | Retries | Up to 10 attempts on 429, 5xx, timeouts and connection errors. Backoff is exponential (2 s base, 60 s cap) with jitter and honours `retry-after`. |
 | JSON parsing | Code fences or surrounding prose are stripped, then Pydantic validation runs. One repair re-ask is made on invalid JSON or a Groq `json_validate_failed` error. |
 | Concurrency | 4 records in parallel (`--concurrency`) |
 
-Dependencies (pinned in `requirements.txt`): Python 3.11, `groq==1.7.0`, `pydantic==2.14.4`, `openpyxl==3.1.5` (data export only) and `pytest==9.2.0`.
+Dependencies, pinned in `requirements.txt`: Python 3.11, `groq==1.7.0`, `pydantic==2.14.4`, `openpyxl==3.1.5` (workbook export only), `pytest==9.2.0`.
 
-## How it works
+### How a call becomes four labels
 
 ```
 record -> normalise whitespace (wording untouched) -> user message with call time and weekday
-       -> LLM call A: call facts       (validity, refusal, booking, blockers, readiness, discussion + quotes)
-       -> LLM call B: callback facts   (agreed?, acknowledged?, time expression(s) as spoken, vague postponement + quote)
-       -> combine.py   D6 precedence -> disposition -> sub_disposition (tie-break order) -> lead_quality (LQ order)
-       -> callback.py  F1-F12: time expression + call_started_at -> next_call_at (never the machine clock)
-       -> validate.py  five keys, allowed pair, +05:30 with seconds, real null
+       -> extract_call_outcome.md   validity, refusal, booking, blockers, readiness, discussion, plus quotes
+       -> extract_callback.md       was a callback agreed and acknowledged, and the time as spoken, plus a quote
+       -> label_rules.py            precedence, allowed pair, tie-break, lead quality
+       -> next_call_resolver.py     spoken time + call_started_at -> next_call_at (never the machine clock)
+       -> output_validator.py       five keys, allowed pair, +05:30 with seconds, real null
 ```
 
-- **The model never computes dates.** It encodes what was said, for example `{day_ref: tomorrow, daypart: evening}` or `{day_ref: date, day: 26}`. Python resolves that against `call_started_at`.
-- **Callback timing is a separate prompt.** It is the most error-prone question and is worth 20 points.
-- **Failures are isolated per record.** If extraction still fails after retries, that record gets a documented fallback (`Follow-up Required / Further Discussion / Medium / next day 11:00`, which keeps the lead open), the error is logged in `debug.jsonl`, and the run continues. A transcript with no customer speech is labeled Unable to Assess without calling the model.
-- **No per-record logic.** There are no ID or hash lookups and no few-shot examples from the labeled set. The prompts paraphrase the policy only. `tests/test_guardrails.py` fails if inference code references gold labels, the evaluator, the machine clock or a transcript ID.
+- The model never computes a date. It encodes what was said, for example `{day_ref: tomorrow, daypart: evening}`. Python resolves that against `call_started_at`.
+- Callback timing is its own prompt. It is the most error-prone question and worth 20 points.
+- One failed record does not stop the run. After retries it gets a documented fallback (`Follow-up Required / Further Discussion / Medium / next day 11:00`). A transcript with no customer speech is `Unable to Assess` and the model is not called.
+- There is no per-record logic, no id lookup and no few-shot example taken from the labeled calls. `tests/labeling/test_guardrails.py` fails if `call_labeling/` mentions the reference file, imports `evaluation`, reads the machine clock, or contains a transcript id.
 
-## Repository layout
+Results, failure classes and the iteration log: [`docs/error_analysis_labeling.md`](docs/error_analysis_labeling.md).
+
+## Task 2
+
+Not built yet. The package is in place so the gender work does not get mixed into the labeler:
+
+- `customer_gender/speaker_parsing.py` splits turns.
+- `customer_gender/cue_lexicons.py` holds honorifics, relationship words and names.
+- `customer_gender/gender_scoring.py` is the weighted cascade. It will not call a transformer.
+- `customer_gender/gender_labels_manual.jsonl` is where hand labels go, separate from `data/gold_labels.jsonl`.
+- `evaluation/eval_gender.py` will score it.
+
+## Layout
 
 ```
-run.py                       one-command runner
-fde/io.py, fde/transcript.py shared input contract, JSONL I/O, turn parsing (reused by task 2)
-fde/labeler/
-  config.py                  pinned model and runtime settings
-  prompts/                   facts.md, callback.md, time_expr.md (complete prompt text)
-  schema.py                  extraction schema and output model
-  llm.py                     Groq client: strict schema, retries, repair, usage
-  extract.py                 prompt assembly and the two calls
-  combine.py                 disposition / sub_disposition / lead_quality rules
-  callback.py                next_call_at resolver (F1-F12)
-  validate.py                output contract and fallback record
-  pipeline.py                per-record orchestration and isolation
-  evaluate.py                scoring (evaluation only, never imported by run.py)
-scripts/                     workbook export, dev/holdout split
-data/                        calls.jsonl (inputs), gold.jsonl (labels), splits.json
-tests/                       resolver, combiner, pipeline, guardrails, synthetic rare-label set
-docs/error_analysis.md       results, failure classes, iteration log
+data/calls_input.jsonl            the only file inference reads
+data/gold_labels.jsonl            reference answers for task 1
+data/splits/                      dev_ids.txt, holdout_ids.txt
+data/raw/                         original workbook, not committed
+call_labeling/                    task 1
+  run_labeling.py                 command line
+  settings.py                     pinned model and runtime settings
+  llm_client.py                   Groq: strict schema, retries, repair, usage
+  evidence_schema.py              what the model is allowed to return
+  evidence_extraction.py          the two model calls
+  prompts/                        extract_call_outcome.md, extract_callback.md, time_expression.md
+  label_vocabulary.py             allowed labels and pairs
+  label_rules.py                  disposition, sub_disposition, lead quality
+  next_call_resolver.py           callback rules F1-F12
+  output_validator.py             output contract and the fallback record
+  label_one_call.py               one record, including the fallback path
+  input_records.py                JSONL loading; drops every non-input field
+  transcript_text.py              whitespace normalisation and turn splitting
+customer_gender/                  task 2 (scaffold)
+evaluation/                       scoring; imported by neither task
+tests/labeling/                   resolver, rules, one-call path, guardrails, synthetic calls
+tests/gender/
+outputs/                          labeling_predictions.jsonl, gender_predictions.jsonl, debug/
+docs/error_analysis_labeling.md
+scripts/                          workbook export and the dev/holdout split
 ```
 
 ## Data
 
-`scripts/export_workbook.py` converts the candidate workbook into `data/calls.jsonl` (inputs only) and `data/gold.jsonl` (labels only; the literal `null` becomes JSON `null`). `scripts/make_split.py` makes a seeded, stratified split of 35 dev and 15 holdout calls. Prompt iteration uses dev only, and holdout is scored once after the prompt is frozen.
+`scripts/export_workbook.py` writes `data/calls_input.jsonl` and `data/gold_labels.jsonl` from the candidate workbook. The sheet's literal `null` becomes JSON `null`. `scripts/make_split.py` writes the seeded 35/15 split as one id per line. Prompt work uses dev only. Holdout is scored once, after the prompts are frozen.
 
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest      # 138 tests, offline, under 1 s
+.venv/bin/python -m pytest
 ```
 
-The suite includes a **reverse test**. Hand-written callback descriptors for all 50 labeled calls must reproduce every gold `next_call_at` (50/50). Because the resolver is verified on its own, any `next_call_at` miss in a live run is an extraction error rather than a misread rule.
+The suite includes a reverse test: hand-written callback descriptions for all 50 labeled calls reproduce every reference `next_call_at`. A `next_call_at` miss in a live run is therefore the model misreading the call, not the date arithmetic.

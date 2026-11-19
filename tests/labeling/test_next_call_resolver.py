@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from fde.labeler.callback import resolve_next_call
-from fde.labeler.schema import CallbackExtraction, TimeExpr
-from fde.labeler.taxonomy import APPOINTMENT, FOLLOW_UP, INVALID, NOT_INTERESTED, UNABLE
+from call_labeling.evidence_schema import CallbackExtraction, TimeExpr
+from call_labeling.label_vocabulary import APPOINTMENT, FOLLOW_UP, INVALID, NOT_INTERESTED, UNABLE
+from call_labeling.next_call_resolver import resolve_next_call
 
 MON_1400 = "2026-11-09T14:00:00+05:30"  # rulebook EX1-EX4 reference call
 

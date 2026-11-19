@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from fde.labeler.combine import combine
-from fde.labeler.schema import CallbackExtraction, CallFacts
-from fde.labeler.taxonomy import ALLOWED_PAIRS
-from fde.labeler.validate import contract_errors, fallback_prediction
+from call_labeling.evidence_schema import CallbackExtraction, CallFacts
+from call_labeling.label_rules import combine
+from call_labeling.label_vocabulary import ALLOWED_PAIRS
+from call_labeling.output_validator import contract_errors, fallback_prediction
 
 START = "2026-11-09T14:00:00+05:30"  # Monday
 OPEN = {"discussion": {"meaningful_relevant_discussion": True}, "readiness": {"pain_need_established": True}}

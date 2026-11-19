@@ -1,17 +1,16 @@
-"""Score predictions against gold labels (evaluation only; never imported by run.py).
+"""Score task-1 predictions against the reference answers. Never imported by call_labeling.
 
-    python -m fde.labeler.evaluate --pred outputs/predictions.jsonl --split dev
+    python -m evaluation.eval_labeling --pred outputs/labeling_predictions.jsonl --split dev
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 from collections import Counter
 from pathlib import Path
 
-from ..io import iter_jsonl
-from .validate import contract_errors
+from call_labeling.input_records import iter_jsonl
+from call_labeling.output_validator import contract_errors
 
 FIELDS = ("disposition", "sub_disposition", "lead_quality", "next_call_at")
 WEIGHTS = {"disposition": 15, "sub_disposition": 20, "lead_quality": 15, "next_call_at": 20}
@@ -71,15 +70,15 @@ def report(result: dict) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pred", required=True)
-    ap.add_argument("--gold", default="data/gold.jsonl")
+    ap.add_argument("--gold", default="data/gold_labels.jsonl")
     ap.add_argument("--split", choices=("all", "dev", "holdout"), default="all")
-    ap.add_argument("--splits", default="data/splits.json")
+    ap.add_argument("--splits", default="data/splits", help="directory with dev_ids.txt and holdout_ids.txt")
     args = ap.parse_args()
 
     golds = {g["transcript_id"]: g for g in iter_jsonl(args.gold)}
     if args.split != "all":
-        keep = set(json.loads(Path(args.splits).read_text())[args.split])
-        golds = {k: v for k, v in golds.items() if k in keep}
+        ids = (Path(args.splits) / f"{args.split}_ids.txt").read_text().split()
+        golds = {k: v for k, v in golds.items() if k in set(ids)}
     preds = {p["transcript_id"]: p for p in iter_jsonl(args.pred)}
     print(f"[{args.split}] " + report(score(preds, golds)))
 

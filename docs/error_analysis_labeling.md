@@ -1,6 +1,6 @@
 # Error analysis and iteration log
 
-Status: the pipeline, the deterministic rules and the offline validation are complete. **Live model results are pending a run with a Groq key.** Fill in the tables below from `make dev`, `make holdout` and `make predict`. `outputs/predictions.meta.json` provides runtime, tokens and cost.
+Status: the pipeline, the deterministic rules and the offline validation are complete. **Live model results are pending a run with a Groq key.** Fill in the tables below from `make dev`, `make holdout` and `make predict`. `outputs/labeling_predictions.meta.json` provides runtime, tokens and cost.
 
 ## 1. What is verified without the model
 
@@ -12,7 +12,7 @@ Status: the pipeline, the deterministic rules and the offline validation are com
 | Output contract, fallback record, failure isolation, guardrails | pass |
 | Baseline: fallback record for every call (scored with `evaluate.py`) | 23.1 / 70 label points; disposition 72%, lead quality 66%, next_call_at 10%, sub_disposition 2% |
 
-Because the resolver reproduces all 50 gold timestamps from correct descriptors, any `next_call_at` error in a live run comes from extraction (a misread callback, acknowledgement or postponement), not from date arithmetic. Debugging can go straight to the `callback` block in `debug.jsonl`.
+Because the resolver reproduces all 50 gold timestamps from correct descriptors, any `next_call_at` error in a live run comes from extraction (a misread callback, acknowledgement or postponement), not from date arithmetic. Debugging can go straight to the `callback` block in `outputs/debug/`.
 
 ## 2. Gold-label structure that shaped the design
 
@@ -43,11 +43,11 @@ Because the resolver reproduces all 50 gold timestamps from correct descriptors,
 | all 50 (submission) | 50 | | | | | | |
 | synthetic rare labels | 10 | | | | | | |
 
-Runtime, tokens and cost (from `predictions.meta.json`): wall time __, mean per record __, tokens in/out __/__, about $__. At list price ($0.15 / $0.60 per 1M tokens) and roughly 2 × 4k input tokens per record, 50 records cost on the order of $0.10.
+Runtime, tokens and cost (from `outputs/labeling_predictions.meta.json`): wall time __, mean per record __, tokens in/out __/__, about $__. At list price ($0.15 / $0.60 per 1M tokens) and roughly 2 × 4k input tokens per record, 50 records cost on the order of $0.10.
 
 ## 5. Failure classes to check first
 
-For each mismatch printed by `evaluate.py`, open the record in `debug.jsonl` and read the `facts`, `callback` and `trace` blocks.
+For each mismatch printed by `evaluation.eval_labeling`, open the record in `outputs/debug/` and read the `facts`, `callback` and `trace` blocks.
 
 1. Travel Constraint confused with Specific Callback, when the customer is away but gives a date. The combiner lets any named blocker win over Specific Callback, so this error appears only if `blockers` comes back empty.
 2. An agent proposal treated as a mutual booking (`slot_confirmed_by_both` true on an offer).

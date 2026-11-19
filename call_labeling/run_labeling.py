@@ -1,6 +1,7 @@
-"""Label call transcripts: input JSONL in, prediction JSONL out.
+"""Task 1. Label call transcripts: input JSONL in, prediction JSONL out.
 
-    python run.py --input data/calls.jsonl --output outputs/predictions.jsonl
+    python -m call_labeling.run_labeling \\
+        --input data/calls_input.jsonl --output outputs/labeling_predictions.jsonl
 
 Reads GROQ_API_KEY from the environment (or a local .env). Only the input
 fields transcript_id, call_started_at, timezone and transcript are used.
@@ -19,10 +20,10 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 
-from fde.io import load_calls, write_jsonl
-from fde.labeler.config import SETTINGS
-from fde.labeler.llm import GroqJSONClient, LLMError
-from fde.labeler.pipeline import label_record
+from .input_records import load_calls, write_jsonl
+from .label_one_call import label_record
+from .llm_client import GroqJSONClient, LLMError
+from .settings import SETTINGS
 
 log = logging.getLogger("run")
 
@@ -40,7 +41,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--input", required=True, help="input JSONL")
     ap.add_argument("--output", required=True, help="prediction JSONL (exactly five keys per line)")
-    ap.add_argument("--debug", help="per-record extraction/trace JSONL (default: <output dir>/debug.jsonl)")
+    ap.add_argument("--debug", help="per-record evidence and trace JSONL (default: outputs/debug/<output stem>.jsonl)")
     ap.add_argument("--concurrency", type=int, default=SETTINGS.concurrency)
     ap.add_argument("--ids", help="comma-separated transcript_ids to run (development only)")
     args = ap.parse_args()
@@ -83,7 +84,7 @@ def main() -> int:
     predictions = [p for p, _ in results]
     debug_rows = [d for _, d in results]
     write_jsonl(args.output, predictions)
-    debug_path = Path(args.debug) if args.debug else Path(args.output).parent / "debug.jsonl"
+    debug_path = Path(args.debug) if args.debug else Path("outputs/debug") / (Path(args.output).stem + ".jsonl")
     write_jsonl(debug_path, debug_rows)
 
     usage = [d.get("usage", {}) for d in debug_rows]

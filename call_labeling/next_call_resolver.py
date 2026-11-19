@@ -12,8 +12,8 @@ from datetime import date, datetime, time, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-from .schema import CallbackExtraction, TimeExpr
-from .taxonomy import APPOINTMENT, CALLBACK_SUPPRESSED
+from .evidence_schema import CallbackExtraction, TimeExpr
+from .label_vocabulary import APPOINTMENT, CALLBACK_SUPPRESSED
 
 DEFAULT_TIME = time(11, 0)
 DAYPART_TIME = {  # F5

@@ -12,10 +12,10 @@ from pathlib import Path
 
 import pytest
 
-from fde.labeler.callback import resolve_next_call
-from fde.labeler.schema import CallbackExtraction, TimeExpr
+from call_labeling.evidence_schema import CallbackExtraction, TimeExpr
+from call_labeling.next_call_resolver import resolve_next_call
 
-DATA = Path(__file__).resolve().parents[1] / "data"
+DATA = Path(__file__).resolve().parents[2] / "data"
 
 
 def _specific(*options: dict) -> CallbackExtraction:
@@ -48,8 +48,8 @@ NO_POSTPONEMENT = {"AVT-015", "AVT-041", "AVT-042", "AVT-048", "AVT-050"}
 
 
 def _gold_rows():
-    calls = {c["transcript_id"]: c for c in map(json.loads, (DATA / "calls.jsonl").open())}
-    for g in map(json.loads, (DATA / "gold.jsonl").open()):
+    calls = {c["transcript_id"]: c for c in map(json.loads, (DATA / "calls_input.jsonl").open())}
+    for g in map(json.loads, (DATA / "gold_labels.jsonl").open()):
         yield g, calls[g["transcript_id"]]
 
 

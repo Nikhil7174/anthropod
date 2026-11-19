@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta
 
-from .callback import DEFAULT_TIME, format_ts, parse_call_start
-from .taxonomy import ALLOWED_PAIRS, CALLBACK_SUPPRESSED, FOLLOW_UP, LEAD_QUALITIES, is_valid_pair
+from .label_vocabulary import ALLOWED_PAIRS, CALLBACK_SUPPRESSED, FOLLOW_UP, LEAD_QUALITIES, is_valid_pair
+from .next_call_resolver import DEFAULT_TIME, format_ts, parse_call_start
 
 OUTPUT_KEYS = ("transcript_id", "disposition", "sub_disposition", "lead_quality", "next_call_at")
 _TS = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+05:30$")

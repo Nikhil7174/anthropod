@@ -6,11 +6,9 @@ import ast
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-INFERENCE_FILES = [ROOT / "run.py", ROOT / "fde" / "io.py", ROOT / "fde" / "transcript.py"] + [
-    p for p in (ROOT / "fde" / "labeler").rglob("*.py") if p.name != "evaluate.py"
-]
-PROMPTS = list((ROOT / "fde" / "labeler" / "prompts").glob("*.md"))
+ROOT = Path(__file__).resolve().parents[2]
+INFERENCE_FILES = list((ROOT / "call_labeling").rglob("*.py"))
+PROMPTS = list((ROOT / "call_labeling" / "prompts").glob("*.md"))
 
 
 def _imports(path: Path) -> set[str]:

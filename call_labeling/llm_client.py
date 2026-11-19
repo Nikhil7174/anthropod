@@ -15,7 +15,7 @@ from typing import Optional, Type, TypeVar
 import groq
 from pydantic import BaseModel, ValidationError
 
-from .config import Settings
+from .settings import Settings
 
 log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)

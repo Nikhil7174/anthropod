@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
-from .callback import parse_call_start, resolve_expr, resolve_next_call
-from .schema import CallbackExtraction, CallFacts, TimeExpr
-from .taxonomy import APPOINTMENT, FOLLOW_UP, INVALID, NOT_INTERESTED, UNABLE
+from .evidence_schema import CallbackExtraction, CallFacts, TimeExpr
+from .label_vocabulary import APPOINTMENT, FOLLOW_UP, INVALID, NOT_INTERESTED, UNABLE
+from .next_call_resolver import parse_call_start, resolve_expr, resolve_next_call
 
 # Invalid Lead tie-break order (SUB "All: Tie-breaking").
 _INVALID_REASONS = (

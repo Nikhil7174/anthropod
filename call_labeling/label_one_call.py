@@ -6,13 +6,13 @@ import logging
 import time
 from typing import Optional
 
-from ..io import CallRecord
-from ..transcript import customer_word_count, parse_turns
-from .combine import combine
-from .extract import extract
-from .llm import GroqJSONClient
-from .taxonomy import UNABLE
-from .validate import OUTPUT_KEYS, contract_errors, fallback_prediction
+from .evidence_extraction import extract
+from .input_records import CallRecord
+from .label_rules import combine
+from .label_vocabulary import UNABLE
+from .llm_client import GroqJSONClient
+from .output_validator import OUTPUT_KEYS, contract_errors, fallback_prediction
+from .transcript_text import customer_word_count, parse_turns
 
 log = logging.getLogger(__name__)
 

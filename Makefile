@@ -1,5 +1,5 @@
 PY ?= .venv/bin/python
-ids = $(shell $(PY) -c 'import json; print(",".join(json.load(open("data/splits.json"))["$(1)"]))')
+ids = $(shell paste -sd, data/splits/$(1)_ids.txt)
 
 .PHONY: setup test dev holdout predict synthetic
 
@@ -9,18 +9,18 @@ setup:
 test:
 	$(PY) -m pytest
 
-dev:  ## iterate here
-	$(PY) run.py --input data/calls.jsonl --output outputs/runs/dev.jsonl --ids "$(call ids,dev)"
-	$(PY) -m fde.labeler.evaluate --pred outputs/runs/dev.jsonl --split dev
+dev:  ## task 1, iterate here
+	$(PY) -m call_labeling.run_labeling --input data/calls_input.jsonl --output outputs/runs/dev.jsonl --ids "$(call ids,dev)"
+	$(PY) -m evaluation.eval_labeling --pred outputs/runs/dev.jsonl --split dev
 
-holdout:  ## run once, after the prompt is frozen
-	$(PY) run.py --input data/calls.jsonl --output outputs/runs/holdout.jsonl --ids "$(call ids,holdout)"
-	$(PY) -m fde.labeler.evaluate --pred outputs/runs/holdout.jsonl --split holdout
+holdout:  ## task 1, once, after the prompts are frozen
+	$(PY) -m call_labeling.run_labeling --input data/calls_input.jsonl --output outputs/runs/holdout.jsonl --ids "$(call ids,holdout)"
+	$(PY) -m evaluation.eval_labeling --pred outputs/runs/holdout.jsonl --split holdout
 
-predict:  ## submission file for all 50
-	$(PY) run.py --input data/calls.jsonl --output outputs/predictions.jsonl
-	$(PY) -m fde.labeler.evaluate --pred outputs/predictions.jsonl
+predict:  ## task 1 submission file
+	$(PY) -m call_labeling.run_labeling --input data/calls_input.jsonl --output outputs/labeling_predictions.jsonl
+	$(PY) -m evaluation.eval_labeling --pred outputs/labeling_predictions.jsonl
 
-synthetic:  ## rare labels absent from the supplied sample
-	$(PY) run.py --input tests/synthetic/calls.jsonl --output outputs/runs/synthetic.jsonl
-	$(PY) -m fde.labeler.evaluate --pred outputs/runs/synthetic.jsonl --gold tests/synthetic/gold.jsonl
+synthetic:  ## task 1 rare labels absent from the supplied sample
+	$(PY) -m call_labeling.run_labeling --input tests/labeling/synthetic_calls/calls_input.jsonl --output outputs/runs/synthetic.jsonl
+	$(PY) -m evaluation.eval_labeling --pred outputs/runs/synthetic.jsonl --gold tests/labeling/synthetic_calls/gold_labels.jsonl

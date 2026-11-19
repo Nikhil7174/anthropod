@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from fde.io import CallRecord
-from fde.labeler.extract import system_prompt, user_message
-from fde.labeler.llm import LLMError, Usage, parse_json_object, strict_schema
-from fde.labeler.pipeline import label_record
-from fde.labeler.schema import CallbackExtraction, CallFacts
-from fde.labeler.validate import OUTPUT_KEYS, contract_errors
+from call_labeling.evidence_extraction import system_prompt, user_message
+from call_labeling.evidence_schema import CallbackExtraction, CallFacts
+from call_labeling.input_records import CallRecord
+from call_labeling.label_one_call import label_record
+from call_labeling.llm_client import LLMError, Usage, parse_json_object, strict_schema
+from call_labeling.output_validator import OUTPUT_KEYS, contract_errors
 
 RECORD = CallRecord(
     transcript_id="T-1",
@@ -47,7 +47,7 @@ def test_strict_schema_is_closed_and_fully_required():
 
 
 def test_prompts_render_and_user_message_has_weekday():
-    for name in ("facts", "callback"):
+    for name in ("extract_call_outcome", "extract_callback"):
         prompt = system_prompt(name)
         assert "{time_expr}" not in prompt and "day_ref" in prompt
     msg = user_message(RECORD)
