@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from call_labeling.evidence_extraction import system_prompt, system_prompt_both, user_message
-from call_labeling.evidence_schema import BothExtraction, CallbackExtraction, CallFacts
+from call_labeling.evidence_schema import Blockers, BothExtraction, CallbackExtraction, CallFacts
 from call_labeling.input_records import CallRecord
-from call_labeling.label_one_call import label_record
+from call_labeling.label_one_call import label_record, vote_blockers
 from call_labeling.llm_client import LLMError, Usage, parse_json_object, strict_schema
 from call_labeling.output_validator import OUTPUT_KEYS, contract_errors
 
@@ -97,6 +97,25 @@ def test_no_customer_speech_short_circuits():
     rec = RECORD.model_copy(update={"transcript": "Agent: Hello?\nAgent: Hello, can you hear me?"})
     pred, _ = label_record(None, rec)
     assert pred["disposition"] == "Unable to Assess" and pred["next_call_at"] is None
+
+
+def test_vote_blockers_keeps_only_a_majority():
+    blockers = [
+        Blockers(primary="travel", final_unresolved=["travel", "family"]),
+        Blockers(primary="travel", final_unresolved=["travel"]),
+        Blockers(primary="family", final_unresolved=["family", "cost"]),
+    ]
+    voted = vote_blockers(blockers)
+    assert voted.primary == "travel"
+    assert voted.final_unresolved == ["family", "travel"]
+
+    split = [
+        Blockers(primary="travel", final_unresolved=["travel"]),
+        Blockers(primary="family", final_unresolved=["family"]),
+        Blockers(primary="cost", final_unresolved=["cost"]),
+    ]
+    assert vote_blockers(split).primary is None
+    assert vote_blockers(split).final_unresolved == []
 
 
 def test_parse_json_object_tolerates_fences():

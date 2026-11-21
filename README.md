@@ -49,7 +49,7 @@ Pinned in [`call_labeling/settings.py`](call_labeling/settings.py) and copied in
 | reasoning_effort | `medium`. Cerebras returns no reasoning text (`reasoning_format=hidden`). Groq sets `include_reasoning=false` |
 | max_completion_tokens | 8192 (includes reasoning) |
 | Output format | `json_schema` with `strict: true`, generated from the Pydantic models |
-| Calls per record | 1 by default: outcome and callback in one JSON object. `--calls 2` asks for them separately |
+| Calls per record | 1 by default: outcome and callback in one JSON object. `--calls 2` asks for them separately. `--votes 3` repeats the extraction and keeps a blocker only when a majority agrees |
 | Request timeout | 90 s |
 | Retries | Up to 10 attempts on 429, 5xx, timeouts and connection errors. Backoff is exponential (2 s base, 60 s cap) with jitter and honours `retry-after`. A daily quota stops the run and keeps finished records. |
 | JSON parsing | Code fences or surrounding prose are stripped, then Pydantic validation runs. One repair re-ask is made on invalid JSON or a `json_validate_failed` error. |
