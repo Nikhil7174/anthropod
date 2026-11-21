@@ -31,12 +31,14 @@ Read ONE call transcript and report evidence-backed FACTS as JSON. Do not assign
 
 ### blockers
 `final_unresolved`: every blocker still preventing the customer from committing at the END of the call (empty if none). `primary`: the one the customer presents as the main reason at the end (null if none).
-- `family`: the open step is a family member's discussion, approval or decision (spouse, parent, child), or the patient is a family member whose own decision is pending.
+- `family`: the open step is a family member's approval or decision about whether to consult or accept the treatment, or the patient is a family member whose own decision is pending. Asking them whether a proposed day is acceptable is still family.
 - `cost`: affordability, waiting for money, payment, or insurance coverage still unresolved.
-- `travel`: travel, temporary absence (customer, patient or a needed companion out of town or away), distance or transport, work/business/office schedule, being busy until some date, or clinic days/hours not fitting — while the service remains feasible. Waiting for someone to return so the patient can be accompanied is travel, not family.
-- `current_treatment`: waiting to finish or assess another ongoing treatment, medication, surgery, physiotherapy or another doctor's advice before deciding.
-- `treatment_concern`: unresolved questions or mistrust about the treatment, procedure, injections/steroids, results, side effects, or the doctor's suitability/seniority.
+- `travel`: travel, a companion being away, being unable to come without an escort, distance or transport, work or office hours, having to take leave, being busy until some date, or clinic days/hours not fitting — while the service remains feasible. This stays travel when a spouse or parent is only the person who would escort them or change work hours. It is not family.
+- `current_treatment`: waiting to finish or judge an ongoing treatment, medication, surgery, physiotherapy, or another doctor's advice. Naming that ongoing care and saying they will call only if the problem remains is current_treatment, not a reason-free postponement.
+- `treatment_concern`: a doubt still open at the end about the procedure, injections, steroids, results, duration, side effects, or the doctor's suitability or seniority, including wanting to look the procedure up before deciding. Agent reassurance does not close it. An agreed callback does not remove it.
 - `info_review`: the customer's final next step is to review specific requested information (doctor profiles, treatment details) or reports before deciding. Merely asking for the address/location does NOT count.
+
+If more than one blocker applies, `primary` is the fact that stops the booking. A travel fact (cannot come alone, companion away, work hours against clinic hours) outranks a family mention that only exists to arrange that travel. A named blocker above also outranks "I'll let you know" with no further reason.
 
 ### readiness
 - `pain_need_established`: the intended patient has a pain-related problem for which care is being sought.

@@ -65,8 +65,8 @@ def main() -> int:
     ap.add_argument("--ids", help="comma-separated transcript_ids to run (development only)")
     ap.add_argument("--limit", type=int, help="run only the first N records after --ids filtering")
     ap.add_argument("--fresh", action="store_true", help="ignore the checkpoint and relabel every record")
-    ap.add_argument("--calls", type=int, choices=(1, 2), default=2,
-                    help="model calls per record: 2 (outcome then callback) or 1 (both in one JSON object)")
+    ap.add_argument("--calls", type=int, choices=(1, 2), default=1,
+                    help="model calls per record: 1 (outcome and callback in one JSON object) or 2")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
