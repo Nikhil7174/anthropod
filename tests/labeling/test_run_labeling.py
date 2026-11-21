@@ -30,7 +30,7 @@ def test_rerun_resumes_and_retries_fallbacks(monkeypatch, tmp_path):
     _write_calls(tmp_path / "calls.jsonl", 3)
     labeled = []
 
-    def fake_label(client, record):
+    def fake_label(client, record, **_):
         labeled.append(record.transcript_id)
         pred = fallback_prediction(record.transcript_id, record.call_started_at)
         debug = {"transcript_id": record.transcript_id, "seconds": 0.0}
@@ -52,7 +52,7 @@ def test_rerun_resumes_and_retries_fallbacks(monkeypatch, tmp_path):
 def test_daily_quota_stops_run_and_keeps_finished_records(monkeypatch, tmp_path):
     _write_calls(tmp_path / "calls.jsonl", 4)
 
-    def fake_label(client, record):
+    def fake_label(client, record, **_):
         if record.transcript_id == "T-2":
             raise QuotaExhausted("tokens per day")
         return fallback_prediction(record.transcript_id, record.call_started_at), {
@@ -70,6 +70,6 @@ def test_daily_quota_stops_run_and_keeps_finished_records(monkeypatch, tmp_path)
 def test_limit_caps_the_run(monkeypatch, tmp_path):
     _write_calls(tmp_path / "calls.jsonl", 5)
     monkeypatch.setattr(run_labeling, "JSONClient", lambda settings: object())
-    monkeypatch.setattr(run_labeling, "label_record", lambda c, r: (
+    monkeypatch.setattr(run_labeling, "label_record", lambda c, r, **_: (
         fallback_prediction(r.transcript_id, r.call_started_at), {"transcript_id": r.transcript_id, "seconds": 0.0}))
     assert len(_run(monkeypatch, tmp_path, "--limit", "2")) == 2

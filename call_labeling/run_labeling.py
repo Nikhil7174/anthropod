@@ -65,6 +65,8 @@ def main() -> int:
     ap.add_argument("--ids", help="comma-separated transcript_ids to run (development only)")
     ap.add_argument("--limit", type=int, help="run only the first N records after --ids filtering")
     ap.add_argument("--fresh", action="store_true", help="ignore the checkpoint and relabel every record")
+    ap.add_argument("--calls", type=int, choices=(1, 2), default=2,
+                    help="model calls per record: 2 (outcome then callback) or 1 (both in one JSON object)")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -83,8 +85,8 @@ def main() -> int:
     checkpoint_path = debug_path.with_suffix(".checkpoint.jsonl")
     results = {} if args.fresh else _load_checkpoint(checkpoint_path, {r.transcript_id for r in records})
     todo = [r for r in records if r.transcript_id not in results]
-    log.info("%d records; %d already in checkpoint, %d to label; provider=%s model=%s",
-             len(records), len(results), len(todo), settings.provider, settings.model)
+    log.info("%d records; %d already in checkpoint, %d to label; provider=%s model=%s calls=%d",
+             len(records), len(results), len(todo), settings.provider, settings.model, args.calls)
 
     try:
         client = JSONClient(settings) if todo else None
@@ -103,7 +105,7 @@ def main() -> int:
             if stop.is_set():
                 return
             try:
-                pred, debug = label_record(client, record)
+                pred, debug = label_record(client, record, calls=args.calls)
             except QuotaExhausted:
                 stop.set()
                 raise
@@ -150,6 +152,7 @@ def main() -> int:
         "estimated_cost_usd": round(
             prompt / 1e6 * settings.price_input_per_m + completion / 1e6 * settings.price_output_per_m, 4
         ),
+        "llm_calls_per_record": args.calls,
         "settings": settings.as_dict(),
     }
     Path(args.output).with_suffix(".meta.json").write_text(json.dumps(meta, indent=2) + "\n")

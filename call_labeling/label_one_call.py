@@ -28,7 +28,7 @@ def _prediction(transcript_id: str, labels) -> dict:
     return {k: values[k] for k in OUTPUT_KEYS}
 
 
-def label_record(client: Optional[JSONClient], record: CallRecord) -> tuple[dict, dict]:
+def label_record(client: Optional[JSONClient], record: CallRecord, calls: int = 2) -> tuple[dict, dict]:
     """Return (prediction, debug). Never raises."""
     t0 = time.monotonic()
     debug: dict = {"transcript_id": record.transcript_id}
@@ -44,7 +44,8 @@ def label_record(client: Optional[JSONClient], record: CallRecord) -> tuple[dict
             }
             debug["trace"] = ["no customer speech -> D5"]
         else:
-            ex = extract(client, record)
+            ex = extract(client, record, calls=calls)
+            debug["llm_calls"] = calls
             labels = combine(ex.facts, ex.callback, record.call_started_at, record.timezone)
             pred = _prediction(record.transcript_id, labels)
             debug.update(

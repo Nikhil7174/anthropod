@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from call_labeling.evidence_extraction import system_prompt, user_message
-from call_labeling.evidence_schema import CallbackExtraction, CallFacts
+from call_labeling.evidence_extraction import system_prompt, system_prompt_both, user_message
+from call_labeling.evidence_schema import BothExtraction, CallbackExtraction, CallFacts
 from call_labeling.input_records import CallRecord
 from call_labeling.label_one_call import label_record
 from call_labeling.llm_client import LLMError, Usage, parse_json_object, strict_schema
@@ -40,7 +40,7 @@ def _all_objects_strict(node) -> bool:
 
 
 def test_strict_schema_is_closed_and_fully_required():
-    for model in (CallFacts, CallbackExtraction):
+    for model in (CallFacts, CallbackExtraction, BothExtraction):
         schema = strict_schema(model)
         assert _all_objects_strict(schema)
         assert "default" not in str(schema)
@@ -52,6 +52,9 @@ def test_prompts_render_and_user_message_has_weekday():
         assert "{time_expr}" not in prompt and "day_ref" in prompt
     msg = user_message(RECORD)
     assert "Monday 09 November 2026" in msg and "T-1" not in msg
+    both = system_prompt_both()
+    assert "{time_expr}" not in both and both.count("## How to encode a time expression") == 1
+    assert "`facts`" in both and "`callback`" in both
 
 
 def test_happy_path_produces_contract_valid_prediction():
@@ -65,6 +68,22 @@ def test_happy_path_produces_contract_valid_prediction():
     assert pred["sub_disposition"] == "Specific Callback"
     assert pred["next_call_at"] == "2026-11-10T16:00:00+05:30"
     assert debug["usage"]["prompt_tokens"] == 200 and "fallback" not in debug
+
+
+def test_one_call_returns_the_same_labels_from_one_request():
+    client = FakeClient({
+        "call_and_callback": {
+            "facts": {"discussion": {"meaningful_relevant_discussion": True},
+                      "readiness": {"pain_need_established": True}},
+            "callback": {"specific_callback_agreed": True, "acknowledged_by_other": True,
+                         "options": [{"day_ref": "tomorrow", "hour": 4}]},
+        }
+    })
+    pred, debug = label_record(client, RECORD, calls=1)
+    assert pred["sub_disposition"] == "Specific Callback"
+    assert pred["next_call_at"] == "2026-11-10T16:00:00+05:30"
+    assert debug["llm_calls"] == 1 and debug["usage"]["requests"] == 1
+    assert debug["usage"]["prompt_tokens"] == 100
 
 
 def test_extraction_failure_falls_back_without_raising():

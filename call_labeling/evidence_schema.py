@@ -155,6 +155,13 @@ class CallFacts(_Extraction):
     discussion: Discussion = Field(default_factory=Discussion)
 
 
+class BothExtraction(_Extraction):
+    """Call outcome and callback in one response. Used only by --calls 1."""
+
+    facts: CallFacts
+    callback: CallbackExtraction
+
+
 # --------------------------------------------------------------------------- output contract
 
 class Prediction(BaseModel):
