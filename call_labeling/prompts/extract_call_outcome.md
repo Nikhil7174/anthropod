@@ -5,7 +5,7 @@ Read ONE call transcript and report evidence-backed FACTS as JSON. Do not assign
 ## Reading rules
 1. The transcript is an English translation of Hindi/English speech: expect noise, repetitions and cut-offs. Speaker labels may be wrong; infer who is the clinic agent (introduces the clinic, explains treatment, offers slots, quotes prices) and who is the customer (the patient or a caregiver) from content.
 2. Agent statements are not customer commitments and not facts about the patient. Only the customer's own words establish need, intent, agreement or refusal. An agent offering, suggesting or listing slots is not a booking.
-3. Report the FINAL operative state at the end of the call. Later statements override earlier ones: a booking later cancelled is not a booking; an early refusal later reversed is not a refusal; an objection resolved before the end is not a final blocker.
+3. Report the FINAL operative state at the end of the call. Later statements override earlier ones: a booking later cancelled is not a booking; an early refusal later reversed is not a refusal. An objection is resolved only when the customer explicitly drops it. Agreeing to a later call, postponing, or the agent reassuring them does not resolve it.
 4. Judge only from this transcript; assume no earlier history.
 5. Every `evidence` field is a short verbatim quote (max ~25 words) from the transcript, or "" if nothing applies.
 
@@ -30,15 +30,16 @@ Read ONE call transcript and report evidence-backed FACTS as JSON. Do not assign
 - `replaces_existing_or_missed`: the confirmed slot replaces an earlier scheduled or missed consultation.
 
 ### blockers
-`final_unresolved`: every blocker still preventing the customer from committing at the END of the call (empty if none). `primary`: the one the customer presents as the main reason at the end (null if none).
-- `family`: the open step is a family member's approval or decision about whether to consult or accept the treatment, or the patient is a family member whose own decision is pending. Asking them whether a proposed day is acceptable is still family.
-- `cost`: affordability, waiting for money, payment, or insurance coverage still unresolved.
-- `travel`: travel, a companion being away, being unable to come without an escort, distance or transport, work or office hours, having to take leave, being busy until some date, or clinic days/hours not fitting — while the service remains feasible. This stays travel when a spouse or parent is only the person who would escort them or change work hours. It is not family.
-- `current_treatment`: waiting to finish or judge an ongoing treatment, medication, surgery, physiotherapy, or another doctor's advice. Naming that ongoing care and saying they will call only if the problem remains is current_treatment, not a reason-free postponement.
-- `treatment_concern`: a doubt still open at the end about the procedure, injections, steroids, results, duration, side effects, or the doctor's suitability or seniority, including wanting to look the procedure up before deciding. Agent reassurance does not close it. An agreed callback does not remove it.
-- `info_review`: the customer's final next step is to review specific requested information (doctor profiles, treatment details) or reports before deciding. Merely asking for the address/location does NOT count.
+A blocker stays unresolved unless the customer explicitly says that issue is settled. Agreeing to a callback, postponing, or the agent reassuring them does not clear it.
 
-If more than one blocker applies, `primary` is the fact that stops the booking. A travel fact (cannot come alone, companion away, work hours against clinic hours) outranks a family mention that only exists to arrange that travel. A named blocker above also outranks "I'll let you know" with no further reason.
+`final_unresolved`: every blocker still open at the end (empty if none). `primary`: the reason the customer gives for not booking now (null if they give none).
+
+- `family`: someone still has to approve or decide whether to consult or accept the treatment. Counts: asking them whether to go ahead, or whether a proposed day is acceptable. Does not count: they are only needed as an escort, are away, or must change work hours (that is travel).
+- `cost`: money, payment, or insurance is still unresolved. Counts only when the customer refers to price, affordability, funds, or coverage. Does not count: ongoing care, or a question about the procedure, with no money mentioned.
+- `travel`: coming is blocked by distance, transport, being away, needing an escort, work, leave, or clinic hours. Counts: they cannot come until someone returns, or clinic hours clash with work. Does not count: they are asking someone whether to consult.
+- `current_treatment`: they are waiting to finish or judge an ongoing treatment, medication, surgery, physiotherapy, or another doctor's advice. Counts: they name that care and will decide after it. Does not count: a money objection, or a doubt about this clinic's procedure.
+- `treatment_concern`: a doubt still open about the procedure itself, injections, steroids, results, duration, side effects, or the doctor's suitability. Counts: they want to understand or look up the procedure before deciding. Does not count: they asked the clinic to send material to review (that is info_review).
+- `info_review`: their next step is to review specific material they asked the clinic for, such as doctor profiles, treatment details, or reports. Counts: they asked for that material and will go through it. Does not count: asking only for the address, or looking up the procedure because they doubt it.
 
 ### readiness
 - `pain_need_established`: the intended patient has a pain-related problem for which care is being sought.
