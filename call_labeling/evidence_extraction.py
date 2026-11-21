@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .evidence_schema import CallbackExtraction, CallFacts
 from .input_records import CallRecord
-from .llm_client import GroqJSONClient, Usage
+from .llm_client import JSONClient, Usage
 from .next_call_resolver import parse_call_start
 from .transcript_text import normalize
 
@@ -39,7 +39,7 @@ class Extraction:
     usage: Usage
 
 
-def extract(client: GroqJSONClient, record: CallRecord) -> Extraction:
+def extract(client: JSONClient, record: CallRecord) -> Extraction:
     user = user_message(record)
     usage = Usage()
     facts, u1 = client.complete(system_prompt(CALL_OUTCOME), user, CallFacts, "call_facts")

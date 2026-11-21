@@ -1,4 +1,8 @@
-"""Groq chat client: schema-constrained JSON output, retries with backoff, usage accounting."""
+"""Chat client for Cerebras and Groq: schema-constrained JSON, retries, usage accounting.
+
+Both hosts serve the open-weight gpt-oss model through an OpenAI-compatible
+chat API. The openai package is only the HTTP client.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +16,7 @@ import time
 from dataclasses import dataclass
 from typing import Optional, Type, TypeVar
 
-import groq
+import openai
 from pydantic import BaseModel, ValidationError
 
 from .settings import Settings
@@ -20,7 +24,7 @@ from .settings import Settings
 log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
-_TRANSIENT = (groq.RateLimitError, groq.APITimeoutError, groq.APIConnectionError, groq.InternalServerError)
+_TRANSIENT = (openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError, openai.InternalServerError)
 _DROP_KEYS = ("default", "title", "minimum", "maximum")
 
 
@@ -29,7 +33,7 @@ class LLMError(RuntimeError):
 
 
 class QuotaExhausted(LLMError):
-    """A daily quota is used up. Retrying within the run cannot help, so the run should stop."""
+    """The account quota is used up. Retrying within the run cannot help, so the run should stop."""
 
 
 @dataclass
@@ -77,27 +81,51 @@ def parse_json_object(text: str) -> dict:
     return json.loads(match.group(0))
 
 
-class GroqJSONClient:
+def _quota_exhausted(exc: Exception) -> bool:
+    body = getattr(exc, "body", None)
+    code = ""
+    if isinstance(body, dict):
+        err = body.get("error") or {}
+        if isinstance(err, dict):
+            code = str(err.get("code") or "")
+    text = f"{code} {exc}".lower()
+    # A spent balance says insufficient_quota. A daily token cap says "per day".
+    return "insufficient_quota" in text or "exceeded your current quota" in text or "per day" in text
+
+
+class JSONClient:
     def __init__(self, settings: Settings, api_key: Optional[str] = None):
-        key = api_key or os.environ.get("GROQ_API_KEY")
+        key = api_key or os.environ.get(settings.api_key_env)
         if not key:
-            raise LLMError("GROQ_API_KEY is not set (export it or put it in .env)")
+            raise LLMError(f"{settings.api_key_env} is not set (export it or put it in .env)")
         self.settings = settings
-        self._client = groq.Groq(api_key=key, timeout=settings.request_timeout_s, max_retries=0)
+        kwargs = dict(api_key=key, timeout=settings.request_timeout_s, max_retries=0)
+        if settings.base_url:
+            kwargs["base_url"] = settings.base_url
+        self._client = openai.OpenAI(**kwargs)
 
     def _request(self, messages: list[dict], schema: Type[BaseModel], name: str) -> dict:
         s = self.settings
         req = dict(
             model=s.model,
             messages=messages,
-            temperature=s.temperature,
-            top_p=s.top_p,
-            seed=s.seed,
             max_completion_tokens=s.max_completion_tokens,
         )
+        if s.temperature is not None:
+            req["temperature"] = s.temperature
+        if s.top_p is not None:
+            req["top_p"] = s.top_p
+        if s.seed is not None:
+            req["seed"] = s.seed
         if s.reasoning_effort:
             req["reasoning_effort"] = s.reasoning_effort
-            req["include_reasoning"] = False
+        extra = {}
+        if s.include_reasoning is not None:
+            extra["include_reasoning"] = s.include_reasoning
+        if s.reasoning_format:
+            extra["reasoning_format"] = s.reasoning_format
+        if extra:
+            req["extra_body"] = extra
         if s.structured_output == "strict":
             req["response_format"] = {
                 "type": "json_schema",
@@ -110,10 +138,10 @@ class GroqJSONClient:
     def _backoff(self, attempt: int, exc: Exception) -> None:
         s = self.settings
         delay = min(s.backoff_cap_s, s.backoff_base_s * 2 ** (attempt - 1)) * random.uniform(0.5, 1.0)
-        retry_after = getattr(getattr(exc, "response", None), "headers", {}).get("retry-after")
+        response = getattr(exc, "response", None)
+        retry_after = response.headers.get("retry-after") if response is not None else None
         if retry_after:
             try:
-                # Honour the server hint, but never park a worker longer than the cap.
                 delay = min(max(delay, float(retry_after)), s.backoff_cap_s)
             except ValueError:
                 pass
@@ -130,13 +158,12 @@ class GroqJSONClient:
             try:
                 resp = self._client.chat.completions.create(**self._request(messages, schema, name))
             except _TRANSIENT as exc:
-                if isinstance(exc, groq.RateLimitError) and "per day" in str(exc):
+                if _quota_exhausted(exc):
                     raise QuotaExhausted(str(exc)[:300]) from exc
                 usage.retries += 1
                 self._backoff(attempt, exc)
                 continue
-            except groq.BadRequestError as exc:
-                # Groq reports schema-decoding failures as 400 json_validate_failed; retry those once.
+            except openai.BadRequestError as exc:
                 if repaired or "json_validate_failed" not in str(exc):
                     raise LLMError(f"bad request: {exc}") from exc
                 repaired = True

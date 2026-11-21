@@ -1,6 +1,6 @@
 # Error analysis and iteration log
 
-Status: the pipeline, the deterministic rules and the offline validation are complete. **Live model results are pending a run with a Groq key.** Fill in the tables below from `make dev`, `make holdout` and `make predict`. `outputs/labeling_predictions.meta.json` provides runtime, tokens and cost.
+Status: the pipeline, the deterministic rules and the offline validation are complete. The submission host is Cerebras, model `gpt-oss-120b`. Groq remains available with `--provider groq`. Live Cerebras results are pending a `CEREBRAS_API_KEY`. Fill in the tables below from `make dev`, `make holdout` and `make predict`. `outputs/labeling_predictions.meta.json` provides runtime, tokens and cost.
 
 ## 1. What is verified without the model
 
@@ -59,7 +59,7 @@ For each mismatch printed by `evaluation.eval_labeling`, open the record in `out
 
 One line per change, with the measured effect on dev. With 35 dev calls, one record is about 2.9 points of field accuracy, so a single-record change is within noise.
 
-Development runs use `openai/gpt-oss-20b` because the free tier caps each model at 200K tokens per day (about 20 calls). `openai/gpt-oss-120b` remains the submission model.
+Runs 0 and 1 below used Groq's `openai/gpt-oss-20b`, because that free tier caps each model at 200K tokens per day. The open model for submission is `gpt-oss-120b`, hosted by default on Cerebras. `--provider groq` still runs `openai/gpt-oss-120b` on Groq.
 
 | # | Model | Change | Calls | Label points / 70 | Exact match | Notes |
 |---|---|---|---|---|---|---|

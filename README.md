@@ -13,7 +13,9 @@ Task 1 is implemented under policy **assignment-v2**. The model reports evidence
 
 ```bash
 python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt
-export GROQ_API_KEY=...            # or put GROQ_API_KEY=... in .env (gitignored; see .env.example)
+export CEREBRAS_API_KEY=...        # or put it in .env (gitignored; see .env.example)
+# optional, only for --provider groq:
+export GROQ_API_KEY=...
 ```
 
 ## Task 1
@@ -42,18 +44,20 @@ Pinned in [`call_labeling/settings.py`](call_labeling/settings.py) and copied in
 
 | Setting | Value |
 |---|---|
-| Provider / model | Groq, `openai/gpt-oss-120b` (open weights) |
+| Provider / model | Cerebras, `gpt-oss-120b` (open weights). `--provider groq` runs the same open model on Groq as `openai/gpt-oss-120b` |
 | temperature / top_p / seed | 0.0 / 1.0 / 7 |
-| reasoning_effort | `medium` (reasoning text not returned) |
+| reasoning_effort | `medium`. Cerebras returns no reasoning text (`reasoning_format=hidden`). Groq sets `include_reasoning=false` |
 | max_completion_tokens | 8192 (includes reasoning) |
 | Output format | `json_schema` with `strict: true`, generated from the Pydantic models |
 | Calls per record | 2: call outcome, then callback |
 | Request timeout | 90 s |
-| Retries | Up to 10 attempts on 429, 5xx, timeouts and connection errors. Backoff is exponential (2 s base, 60 s cap) with jitter and honours `retry-after`. |
-| JSON parsing | Code fences or surrounding prose are stripped, then Pydantic validation runs. One repair re-ask is made on invalid JSON or a Groq `json_validate_failed` error. |
-| Concurrency | 4 records in parallel (`--concurrency`) |
+| Retries | Up to 10 attempts on 429, 5xx, timeouts and connection errors. Backoff is exponential (2 s base, 60 s cap) with jitter and honours `retry-after`. A daily quota stops the run and keeps finished records. |
+| JSON parsing | Code fences or surrounding prose are stripped, then Pydantic validation runs. One repair re-ask is made on invalid JSON or a `json_validate_failed` error. |
+| Concurrency | 2 records in parallel (`--concurrency`). Cerebras free trial is 5 requests per minute, so use `1` there |
 
-Dependencies, pinned in `requirements.txt`: Python 3.11, `groq==1.7.0`, `pydantic==2.14.4`, `openpyxl==3.1.5` (workbook export only), `pytest==9.2.0`.
+The `openai` package is only the HTTP client. Cerebras and Groq both expose an OpenAI-compatible chat API. No closed OpenAI model is called.
+
+Dependencies, pinned in `requirements.txt`: Python 3.11, `openai==3.57.0` (HTTP client only), `pydantic==2.14.4`, `openpyxl==3.1.5` (workbook export only), `pytest==9.2.0`.
 
 ### How a call becomes four labels
 
@@ -93,7 +97,7 @@ data/raw/                         original workbook, not committed
 call_labeling/                    task 1
   run_labeling.py                 command line
   settings.py                     pinned model and runtime settings
-  llm_client.py                   Groq: strict schema, retries, repair, usage
+  llm_client.py                   Cerebras or Groq: strict schema, retries, repair, usage
   evidence_schema.py              what the model is allowed to return
   evidence_extraction.py          the two model calls
   prompts/                        extract_call_outcome.md, extract_callback.md, time_expression.md

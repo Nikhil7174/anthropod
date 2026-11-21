@@ -3,7 +3,7 @@
     python -m call_labeling.run_labeling \\
         --input data/calls_input.jsonl --output outputs/labeling_predictions.jsonl
 
-Reads GROQ_API_KEY from the environment (or a local .env). Only the input
+Reads the provider's API key from the environment (or a local .env). Only the input
 fields transcript_id, call_started_at, timezone and transcript are used.
 """
 
@@ -17,13 +17,12 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import replace
 from pathlib import Path
 
 from .input_records import load_calls, write_jsonl
 from .label_one_call import label_record
-from .llm_client import GroqJSONClient, LLMError, QuotaExhausted
-from .settings import PRICES_PER_M, SETTINGS
+from .llm_client import JSONClient, LLMError, QuotaExhausted
+from .settings import DEFAULT_PROVIDER, PROVIDERS, SETTINGS, settings_for
 
 log = logging.getLogger("run")
 
@@ -59,8 +58,10 @@ def main() -> int:
     ap.add_argument("--output", required=True, help="prediction JSONL (exactly five keys per line)")
     ap.add_argument("--debug", help="per-record evidence and trace JSONL (default: outputs/debug/<output stem>.jsonl)")
     ap.add_argument("--concurrency", type=int, default=SETTINGS.concurrency)
-    ap.add_argument("--model", default=SETTINGS.model,
-                    help=f"Groq model id (default and submission model: {SETTINGS.model}); recorded in the meta file")
+    ap.add_argument("--provider", choices=sorted(PROVIDERS), default=DEFAULT_PROVIDER,
+                    help="inference host (default: cerebras, open model gpt-oss-120b). Groq is --provider groq")
+    ap.add_argument("--model", default=None,
+                    help="model id; omitted means the provider's pinned model, recorded in the meta file")
     ap.add_argument("--ids", help="comma-separated transcript_ids to run (development only)")
     ap.add_argument("--limit", type=int, help="run only the first N records after --ids filtering")
     ap.add_argument("--fresh", action="store_true", help="ignore the checkpoint and relabel every record")
@@ -69,10 +70,7 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     _load_dotenv()
-    settings = replace(SETTINGS, concurrency=args.concurrency, model=args.model)
-    if args.model in PRICES_PER_M:
-        settings = replace(settings, price_input_per_m=PRICES_PER_M[args.model][0],
-                           price_output_per_m=PRICES_PER_M[args.model][1])
+    settings = settings_for(args.provider, model=args.model, concurrency=args.concurrency)
 
     records = load_calls(args.input)
     if args.ids:
@@ -85,11 +83,11 @@ def main() -> int:
     checkpoint_path = debug_path.with_suffix(".checkpoint.jsonl")
     results = {} if args.fresh else _load_checkpoint(checkpoint_path, {r.transcript_id for r in records})
     todo = [r for r in records if r.transcript_id not in results]
-    log.info("%d records; %d already in checkpoint, %d to label; model=%s",
-             len(records), len(results), len(todo), settings.model)
+    log.info("%d records; %d already in checkpoint, %d to label; provider=%s model=%s",
+             len(records), len(results), len(todo), settings.provider, settings.model)
 
     try:
-        client = GroqJSONClient(settings) if todo else None
+        client = JSONClient(settings) if todo else None
     except LLMError as exc:
         log.error("%s", exc)
         return 2

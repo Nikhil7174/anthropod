@@ -38,7 +38,7 @@ def test_rerun_resumes_and_retries_fallbacks(monkeypatch, tmp_path):
             debug["fallback"] = True  # first attempt failed
         return pred, debug
 
-    monkeypatch.setattr(run_labeling, "GroqJSONClient", lambda settings: object())
+    monkeypatch.setattr(run_labeling, "JSONClient", lambda settings: object())
     monkeypatch.setattr(run_labeling, "label_record", fake_label)
 
     first = _run(monkeypatch, tmp_path)
@@ -58,7 +58,7 @@ def test_daily_quota_stops_run_and_keeps_finished_records(monkeypatch, tmp_path)
         return fallback_prediction(record.transcript_id, record.call_started_at), {
             "transcript_id": record.transcript_id, "seconds": 0.0}
 
-    monkeypatch.setattr(run_labeling, "GroqJSONClient", lambda settings: object())
+    monkeypatch.setattr(run_labeling, "JSONClient", lambda settings: object())
     monkeypatch.setattr(run_labeling, "label_record", fake_label)
     out = tmp_path / "pred.jsonl"
     monkeypatch.setattr(sys, "argv", ["run_labeling", "--input", str(tmp_path / "calls.jsonl"), "--output", str(out),
@@ -69,7 +69,7 @@ def test_daily_quota_stops_run_and_keeps_finished_records(monkeypatch, tmp_path)
 
 def test_limit_caps_the_run(monkeypatch, tmp_path):
     _write_calls(tmp_path / "calls.jsonl", 5)
-    monkeypatch.setattr(run_labeling, "GroqJSONClient", lambda settings: object())
+    monkeypatch.setattr(run_labeling, "JSONClient", lambda settings: object())
     monkeypatch.setattr(run_labeling, "label_record", lambda c, r: (
         fallback_prediction(r.transcript_id, r.call_started_at), {"transcript_id": r.transcript_id, "seconds": 0.0}))
     assert len(_run(monkeypatch, tmp_path, "--limit", "2")) == 2

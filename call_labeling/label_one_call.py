@@ -10,7 +10,7 @@ from .evidence_extraction import extract
 from .input_records import CallRecord
 from .label_rules import combine
 from .label_vocabulary import UNABLE
-from .llm_client import GroqJSONClient, QuotaExhausted
+from .llm_client import JSONClient, QuotaExhausted
 from .output_validator import OUTPUT_KEYS, contract_errors, fallback_prediction
 from .transcript_text import customer_word_count, parse_turns
 
@@ -28,7 +28,7 @@ def _prediction(transcript_id: str, labels) -> dict:
     return {k: values[k] for k in OUTPUT_KEYS}
 
 
-def label_record(client: Optional[GroqJSONClient], record: CallRecord) -> tuple[dict, dict]:
+def label_record(client: Optional[JSONClient], record: CallRecord) -> tuple[dict, dict]:
     """Return (prediction, debug). Never raises."""
     t0 = time.monotonic()
     debug: dict = {"transcript_id": record.transcript_id}

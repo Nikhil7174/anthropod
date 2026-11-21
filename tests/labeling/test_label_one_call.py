@@ -82,3 +82,18 @@ def test_no_customer_speech_short_circuits():
 
 def test_parse_json_object_tolerates_fences():
     assert parse_json_object('```json\n{"a": 1}\n```') == {"a": 1}
+
+
+def test_each_provider_requests_the_open_model():
+    from call_labeling.llm_client import JSONClient
+    from call_labeling.settings import settings_for
+
+    cerebras = JSONClient(settings_for("cerebras"), api_key="test")._request([], CallFacts, "call_facts")
+    assert cerebras["model"] == "gpt-oss-120b"
+    assert cerebras["temperature"] == 0.0 and cerebras["seed"] == 7
+    assert cerebras["extra_body"] == {"reasoning_format": "hidden"}
+    assert "include_reasoning" not in cerebras["extra_body"]
+
+    groq = JSONClient(settings_for("groq"), api_key="test")._request([], CallFacts, "call_facts")
+    assert groq["model"] == "openai/gpt-oss-120b"
+    assert groq["extra_body"] == {"include_reasoning": False}
