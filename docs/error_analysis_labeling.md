@@ -1,6 +1,6 @@
 # Error analysis and iteration log
 
-Status: the pipeline, the deterministic rules and the offline validation are complete. The submission host is Cerebras, model `gpt-oss-120b`. Groq remains available with `--provider groq`. Live Cerebras results are pending a `CEREBRAS_API_KEY`. Fill in the tables below from `make dev`, `make holdout` and `make predict`. `outputs/labeling_predictions.meta.json` provides runtime, tokens and cost.
+Status: the pipeline, the deterministic rules and the offline validation are complete. The submission host is Cerebras, model `qwen-3.8-27b`. Groq remains available with `--provider groq`. The design and the measured runs are in [`task1_process.md`](task1_process.md). `outputs/labeling_predictions.meta.json` provides runtime, tokens and cost for a `make predict` run.
 
 ## 1. What is verified without the model
 
@@ -38,12 +38,11 @@ Because the resolver reproduces all 50 gold timestamps from correct descriptors,
 
 | Split | n | disposition | sub_disposition | lead_quality | next_call_at | exact match | label points / 70 |
 |---|---|---|---|---|---|---|---|
-| dev (iteration) | 35 | | | | | | |
-| holdout (frozen prompt, single run) | 15 | | | | | | |
-| all 50 (submission) | 50 | | | | | | |
-| synthetic rare labels | 10 | | | | | | |
+| dev, inside the all-50 run | 35 | 100% | 82.9% | 94.3% | 97.1% | 80.0% | 65.1 |
+| holdout, inside the all-50 run | 15 | 100% | 100% | 93.3% | 100% | 93.3% | 69.0 |
+| all 50, one fresh run | 50 | 100% | 88.0% | 94.0% | 98.0% | 84.0% | 66.3 |
 
-Runtime, tokens and cost (from `outputs/labeling_predictions.meta.json`): wall time __, mean per record __, tokens in/out __/__, about $__. At list price ($0.15 / $0.60 per 1M tokens) and roughly 2 × 4k input tokens per record, 50 records cost on the order of $0.10.
+That run is `outputs/runs/all50.jsonl`: 76 s, 337,380 / 146,785 tokens, about $0.55, Cerebras `qwen-3.8-27b`, no fallbacks. The eight misses are listed in [`task1_process.md`](task1_process.md).
 
 ## 5. Failure classes to check first
 
@@ -59,7 +58,7 @@ For each mismatch printed by `evaluation.eval_labeling`, open the record in `out
 
 One line per change, with the measured effect on dev. With 35 dev calls, one record is about 2.9 points of field accuracy, so a single-record change is within noise.
 
-Runs 0 and 1 below used Groq's `openai/gpt-oss-20b`, because that free tier caps each model at 200K tokens per day. The open model for submission is `gpt-oss-120b`, hosted by default on Cerebras. `--provider groq` still runs `openai/gpt-oss-120b` on Groq.
+Runs 0 and 1 below used Groq's `openai/gpt-oss-20b`, because that free tier caps each model at 200K tokens per day. The open model for submission is `qwen-3.8-27b`, hosted by default on Cerebras. `--provider groq` runs `qwen/qwen3.8-27b` on Groq.
 
 | # | Model | Change | Calls | Label points / 70 | Exact match | Notes |
 |---|---|---|---|---|---|---|

@@ -1,6 +1,6 @@
 """Chat client for Cerebras and Groq: schema-constrained JSON, retries, usage accounting.
 
-Both hosts serve the open-weight gpt-oss model through an OpenAI-compatible
+Both hosts serve the open-weight Qwen 3.8 27B through an OpenAI-compatible
 chat API. The openai package is only the HTTP client.
 """
 

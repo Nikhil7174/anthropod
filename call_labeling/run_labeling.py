@@ -59,9 +59,9 @@ def main() -> int:
     ap.add_argument("--debug", help="per-record evidence and trace JSONL (default: outputs/debug/<output stem>.jsonl)")
     ap.add_argument("--concurrency", type=int, default=SETTINGS.concurrency)
     ap.add_argument("--provider", choices=sorted(PROVIDERS), default=DEFAULT_PROVIDER,
-                    help="inference host (default: cerebras, open model gpt-oss-120b). Groq is --provider groq")
+                    help="inference host (default: cerebras, open model qwen-3.8-27b). Groq is --provider groq")
     ap.add_argument("--model", default=None,
-                    help="model id; omitted means the provider's pinned model, recorded in the meta file")
+                    help="model id; overrides LABELING_MODEL, else the provider default (qwen). Recorded in the meta file")
     ap.add_argument("--ids", help="comma-separated transcript_ids to run (development only)")
     ap.add_argument("--limit", type=int, help="run only the first N records after --ids filtering")
     ap.add_argument("--fresh", action="store_true", help="ignore the checkpoint and relabel every record")

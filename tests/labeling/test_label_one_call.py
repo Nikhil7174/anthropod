@@ -122,16 +122,26 @@ def test_parse_json_object_tolerates_fences():
     assert parse_json_object('```json\n{"a": 1}\n```') == {"a": 1}
 
 
-def test_each_provider_requests_the_open_model():
+def test_each_provider_requests_the_open_model(monkeypatch):
     from call_labeling.llm_client import JSONClient
     from call_labeling.settings import settings_for
 
+    monkeypatch.delenv("LABELING_MODEL", raising=False)
     cerebras = JSONClient(settings_for("cerebras"), api_key="test")._request([], CallFacts, "call_facts")
-    assert cerebras["model"] == "gpt-oss-120b"
+    assert cerebras["model"] == "qwen-3.8-27b"
     assert cerebras["temperature"] == 0.0 and cerebras["seed"] == 7
-    assert cerebras["extra_body"] == {"reasoning_format": "hidden"}
+    assert cerebras["reasoning_effort"] == "high"
+    assert cerebras["extra_body"] == {"reasoning_format": "parsed"}
     assert "include_reasoning" not in cerebras["extra_body"]
 
     groq = JSONClient(settings_for("groq"), api_key="test")._request([], CallFacts, "call_facts")
-    assert groq["model"] == "openai/gpt-oss-120b"
+    assert groq["model"] == "qwen/qwen3.8-27b"
     assert groq["extra_body"] == {"include_reasoning": False}
+
+
+def test_labeling_model_env_overrides_the_default(monkeypatch):
+    from call_labeling.settings import settings_for
+
+    monkeypatch.setenv("LABELING_MODEL", "gpt-oss-120b")
+    assert settings_for("cerebras").model == "gpt-oss-120b"
+    assert settings_for("cerebras", model="qwen-3.8-27b").model == "qwen-3.8-27b"
