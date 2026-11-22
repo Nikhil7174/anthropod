@@ -87,7 +87,7 @@ flowchart TD
 
 Confidence is the margin divided by the margin plus one. A single weak name (0.5) stays under 0.75, so it cannot decide a call by itself. One clear "sir", or one "my husband", can.
 
-The constants `WEIGHT_B` 1.5, `WEIGHT_C` 2.0, `WEIGHT_D` 0.5, `WEIGHT_E` 0.5, `MIN_MARGIN` 0.6, and `MIN_TOTAL` 0.75 live at the top of `gender_scoring.py`. The tag `gender-weights-frozen` points at the commit that contains them. They were not edited after the scores below were produced.
+The constants `WEIGHT_B` 1.5, `WEIGHT_C` 2.0, `WEIGHT_D` 0.5, `WEIGHT_E` 0.5, `MIN_MARGIN` 0.6, and `MIN_TOTAL` 0.75 live at the top of `gender_scoring.py`. Tag `gender-weights-frozen` points at commit `ff50c73589406e60c618c534786474e583faa4b6`, which contains those constants and not this sentence. They were not edited after the scores below were produced.
 
 ## What was measured
 

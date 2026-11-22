@@ -41,4 +41,4 @@ Family A alone matches the full rules on every call where both the rules and the
 
 On the 49 male and female hand labels it agrees on 42 (85.7%). Always guessing male agrees on 35 (71.4%). All 7 misses are female callers predicted male: AVT-010, AVT-021, AVT-026, AVT-030, AVT-036, AVT-043, AVT-046. A small male-heavy set pushes a learned model toward the majority. The rules stay the submission because they abstain when the evidence is thin and because each vote is a quoted span.
 
-The weights and thresholds this file scores are the ones in the commit tagged `gender-weights-frozen`. The hash is recorded in the section below after that tag exists, so the tag itself does not contain this citation.
+The weights and thresholds scored above are the ones in commit `ff50c73589406e60c618c534786474e583faa4b6`, tagged `gender-weights-frozen`. That commit is the parent of this citation. `gender_scoring.py` is unchanged between the tag and this note.
