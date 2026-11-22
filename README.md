@@ -70,12 +70,14 @@ record -> normalise whitespace (wording untouched) -> user message with call tim
        -> output_validator.py       five keys, allowed pair, +05:30 with seconds, real null
 ```
 
+By default those two prompt files are concatenated into one system prompt, with `time_expression.md` included once, and the model returns `facts` and `callback` together. `--calls 2` sends each file as its own request.
+
 - The model never computes a date. It encodes what was said, for example `{day_ref: tomorrow, daypart: evening}`. Python resolves that against `call_started_at`.
-- Callback timing is its own prompt. It is the most error-prone question and worth 20 points.
+- Callback timing stays its own section of that prompt. It is the most error-prone question and worth 20 points.
 - One failed record does not stop the run. After retries it gets a documented fallback (`Follow-up Required / Further Discussion / Medium / next day 11:00`). A transcript with no customer speech is `Unable to Assess` and the model is not called.
 - There is no per-record logic, no id lookup and no few-shot example taken from the labeled calls. `tests/labeling/test_guardrails.py` fails if `call_labeling/` mentions the reference file, imports `evaluation`, reads the machine clock, or contains a transcript id.
 
-The design and the run history are in [`docs/task1_process.md`](docs/task1_process.md). Failure classes and the early iteration log: [`docs/error_analysis_labeling.md`](docs/error_analysis_labeling.md).
+The design and the run history are in [`docs/task1_process.md`](docs/task1_process.md). On Cerebras `qwen-3.8-27b` the 50-call score is a training-set number, 66.3/70 (exact 84%), because the prompts were developed on calls inside that set. Holdout was run once: 69.0/70, exact 93.3%. Per-field accuracy, runtime, tokens and cost are in [`docs/error_analysis_labeling.md`](docs/error_analysis_labeling.md).
 
 ## Task 2
 
@@ -115,7 +117,7 @@ call_labeling/                    task 1
   settings.py                     pinned model and runtime settings
   llm_client.py                   Cerebras or Groq: strict schema, retries, repair, usage
   evidence_schema.py              what the model is allowed to return
-  evidence_extraction.py          the two model calls
+  evidence_extraction.py          both prompt files in one request by default
   prompts/                        extract_call_outcome.md, extract_callback.md, time_expression.md
   label_vocabulary.py             allowed labels and pairs
   label_rules.py                  disposition, sub_disposition, lead quality

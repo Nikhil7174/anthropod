@@ -190,4 +190,4 @@ Disposition was right on every call. The repeating extraction miss is a real blo
 - No new prompt line after the Qwen 50-call run.
 - Votes stay at 1. Three samples did not beat the best single sample on the noisier 15.
 - The schema stayed one facts object and one callback object. Per-blocker booleans were considered and not added.
-- Task 2 was not started.
+- Task 2 stayed a separate package and was not mixed into this prompt.

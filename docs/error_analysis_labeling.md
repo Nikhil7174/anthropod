@@ -1,6 +1,6 @@
 # Error analysis and iteration log
 
-Status: the pipeline, the deterministic rules and the offline validation are complete. The submission host is Cerebras, model `qwen-3.8-27b`. Groq remains available with `--provider groq`. The design and the measured runs are in [`task1_process.md`](task1_process.md). `outputs/labeling_predictions.meta.json` provides runtime, tokens and cost for a `make predict` run.
+Status: the pipeline, the deterministic rules and the offline validation are complete. The submission host is Cerebras, model `qwen-3.8-27b`. Groq remains available with `--provider groq`. The design is in [`task1_process.md`](task1_process.md). The measured scores, runtime, tokens and cost are in section 4.
 
 ## 1. What is verified without the model
 
@@ -34,15 +34,17 @@ Because the resolver reproduces all 50 gold timestamps from correct descriptors,
 | Appointment whose slot day can't be resolved | High | Every sample booking is High. A resolvable slot at offset 7 or more gives Medium (EX6) |
 | Follow-up with an explicit, unblocked visit commitment within offsets 0-6 | High | LQ "High" does not require a booking. Never observed in the sample |
 
-## 4. Live results (to fill)
+## 4. Measured scores
 
-| Split | n | disposition | sub_disposition | lead_quality | next_call_at | exact match | label points / 70 |
-|---|---|---|---|---|---|---|---|
-| dev, inside the all-50 run | 35 | 100% | 82.9% | 94.3% | 97.1% | 80.0% | 65.1 |
-| holdout, inside the all-50 run | 15 | 100% | 100% | 93.3% | 100% | 93.3% | 69.0 |
-| all 50, one fresh run | 50 | 100% | 88.0% | 94.0% | 98.0% | 84.0% | 66.3 |
+Cerebras `qwen-3.8-27b`, one model call per record, temperature 0, seed 7. The 50-call score is a training-set number: the prompts were developed on the 35 dev calls inside that set, so 66.3/70 is not an estimate for new calls. Holdout was run once, after the prompt was frozen.
 
-That run is `outputs/runs/all50.jsonl`: 76 s, 337,380 / 146,785 tokens, about $0.55, Cerebras `qwen-3.8-27b`, no fallbacks. The eight misses are listed in [`task1_process.md`](task1_process.md).
+| Split | n | disposition | sub_disposition | lead_quality | next_call_at | exact match | points / 70 | runtime | input tokens | output tokens | cost |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Dev, scored inside the 50-call run | 35 | 100% | 82.9% | 94.3% | 97.1% | 80.0% (28/35) | 65.1 | — | — | — | — |
+| Holdout, run once | 15 | 100% | 100% | 93.3% | 100% | 93.3% (14/15) | 69.0 | 51.2 s | 105,457 | 56,989 | $0.1893 |
+| All 50, training-set number | 50 | 100% | 88.0% | 94.0% | 98.0% | 84.0% (42/50) | 66.3 | 76.0 s | 337,380 | 146,785 | $0.5527 |
+
+Dev has no separate Qwen bill. Its field scores are the 35 dev records inside the 50-call run. Holdout's runtime, tokens and cost are that one 15-call run: 51.2 s, 105,457 input tokens, 56,989 output tokens, $0.1893, no fallbacks. The same 15 inside the 50-call run matched it, the single miss being AVT-042 lead quality (Medium instead of Not Assessable). The 50-call run took 76.0 s, 337,380 input tokens and 146,785 output tokens, $0.5527, no fallbacks. Cost uses the list prices in `settings.py`, $0.99 and $1.49 per million input and output tokens. The eight misses are listed in [`task1_process.md`](task1_process.md).
 
 ## 5. Failure classes to check first
 

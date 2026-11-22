@@ -1,7 +1,7 @@
-"""Evidence extraction. Neither call returns a final label.
+"""Evidence extraction. Neither request returns a final label.
 
---calls 2 (default) asks for the call outcome, then the callback.
---calls 1 asks for both in one JSON object. The transcript is sent once.
+The default, --calls 1, concatenates both prompt files into one JSON object.
+--calls 2 asks for the call outcome, then the callback. The transcript is sent once either way.
 """
 
 from __future__ import annotations
