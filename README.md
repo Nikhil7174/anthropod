@@ -5,9 +5,9 @@ Two tasks, two packages. Each has its own command and can be read without the ot
 | Task | What it predicts | Command |
 |---|---|---|
 | 1. Call labeling | `disposition`, `sub_disposition`, `lead_quality`, `next_call_at` | `python -m call_labeling.run_labeling` |
-| 2. Customer gender | gender, without a transformer model | `python -m customer_gender.run_gender` (not built yet) |
+| 2. Customer gender | gender of the caller, without a transformer model | `python -m customer_gender.run_gender` |
 
-Task 1 is implemented under policy **assignment-v2**. The model reports evidence; Python applies the policy. Task 2 is scaffolded so its place in the repo is already obvious.
+Task 1 is implemented under policy **assignment-v2**. The model reports evidence; Python applies the policy. Task 2 is a weighted vote of speech cues and does not call a model.
 
 ## Setup
 
@@ -44,16 +44,16 @@ Pinned in [`call_labeling/settings.py`](call_labeling/settings.py) and copied in
 
 | Setting | Value |
 |---|---|
-| Provider / model | Cerebras, `gpt-oss-120b` (open weights). `--provider groq` runs the same open model on Groq as `openai/gpt-oss-120b` |
+| Provider / model | Cerebras, `qwen-3.8-27b` (open weights). `--provider groq` runs the same open model on Groq as `qwen/qwen3.8-27b`. `LABELING_MODEL` in `.env` overrides the default; `--model` overrides that |
 | temperature / top_p / seed | 0.0 / 1.0 / 7 |
-| reasoning_effort | `medium`. Cerebras returns no reasoning text (`reasoning_format=hidden`). Groq sets `include_reasoning=false` |
+| reasoning_effort | `high`. Cerebras returns reasoning separately (`reasoning_format=parsed`); Qwen rejects `hidden`. Groq sets `include_reasoning=false` |
 | max_completion_tokens | 8192 (includes reasoning) |
 | Output format | `json_schema` with `strict: true`, generated from the Pydantic models |
 | Calls per record | 1 by default: outcome and callback in one JSON object. `--calls 2` asks for them separately. `--votes 3` repeats the extraction and keeps a blocker only when a majority agrees |
 | Request timeout | 90 s |
 | Retries | Up to 10 attempts on 429, 5xx, timeouts and connection errors. Backoff is exponential (2 s base, 60 s cap) with jitter and honours `retry-after`. A daily quota stops the run and keeps finished records. |
 | JSON parsing | Code fences or surrounding prose are stripped, then Pydantic validation runs. One repair re-ask is made on invalid JSON or a `json_validate_failed` error. |
-| Concurrency | 2 records in parallel (`--concurrency`). Cerebras free trial is 5 requests per minute, so use `1` there |
+| Concurrency | 2 records in parallel (`--concurrency`). Qwen 3.8 on the Cerebras free trial allows 300 requests per minute |
 
 The `openai` package is only the HTTP client. Cerebras and Groq both expose an OpenAI-compatible chat API. No closed OpenAI model is called.
 
@@ -75,24 +75,40 @@ record -> normalise whitespace (wording untouched) -> user message with call tim
 - One failed record does not stop the run. After retries it gets a documented fallback (`Follow-up Required / Further Discussion / Medium / next day 11:00`). A transcript with no customer speech is `Unable to Assess` and the model is not called.
 - There is no per-record logic, no id lookup and no few-shot example taken from the labeled calls. `tests/labeling/test_guardrails.py` fails if `call_labeling/` mentions the reference file, imports `evaluation`, reads the machine clock, or contains a transcript id.
 
-Results, failure classes and the iteration log: [`docs/error_analysis_labeling.md`](docs/error_analysis_labeling.md).
+The design and the run history are in [`docs/task1_process.md`](docs/task1_process.md). Failure classes and the early iteration log: [`docs/error_analysis_labeling.md`](docs/error_analysis_labeling.md).
 
 ## Task 2
 
-Not built yet. The package is in place so the gender work does not get mixed into the labeler:
+The label is the **caller marked Customer**, not the patient. Caregivers are common, so "my mother" does not make the customer female. The result is inferred from speech cues. It is `unknown` when those cues are thin or mixed. No transformer and no LLM API is used.
 
-- `customer_gender/speaker_parsing.py` splits turns.
-- `customer_gender/cue_lexicons.py` holds honorifics, relationship words and names.
-- `customer_gender/gender_scoring.py` is the weighted cascade. It will not call a transformer.
-- `customer_gender/gender_labels_manual.jsonl` is where hand labels go, separate from `data/gold_labels.jsonl`.
-- `evaluation/eval_gender.py` will score it.
+The method is a weighted vote of labeling functions. Each family votes male, female, or abstains:
+
+| Family | Cue | Weight |
+|---|---|---|
+| A | Agent addresses the customer as sir, ma'am, Mr, or Mrs. Third person ("the madam will", "ma'am has") is dropped. The customer's own sir/ma'am is dropped, because that is the agent's gender | log ratio of the two counts |
+| B | "my husband / my wife", or the agent saying "your husband / your wife" | 1.5, once per side |
+| C | "I am her son", "I am Renu's husband" | 2.0, once per side |
+| D | "my name is" plus a name in the list | 0.5, once per side |
+| E | Agent says bhai, didi, beta, or behen to the customer | 0.5, once per side |
+
+A label is emitted only when the margin is at least 0.6 and the total evidence is at least 0.75. If both honorifics appear and that margin fails, the later half of the call can break the tie. Those constants were set before scoring and were not refit on the errors.
+
+```bash
+.venv/bin/python -m customer_gender.run_gender \
+    --input data/calls_input.jsonl --output outputs/gender_predictions.jsonl
+.venv/bin/python -m evaluation.eval_gender \
+    --pred outputs/gender_predictions.jsonl \
+    --gold customer_gender/gender_labels_manual.jsonl
+```
+
+Hand labels are in `customer_gender/gender_labels_manual.jsonl`, separate from task 1's gold file. `data/splits/gender_holdout_ids.txt` is 15 calls that were not used to choose the cue rules. The design is in [`docs/task2_process.md`](docs/task2_process.md). What those 50 transcripts show, and what they do not, is in [`docs/error_analysis_gender.md`](docs/error_analysis_gender.md).
 
 ## Layout
 
 ```
 data/calls_input.jsonl            the only file inference reads
 data/gold_labels.jsonl            reference answers for task 1
-data/splits/                      dev_ids.txt, holdout_ids.txt
+data/splits/                      dev_ids.txt, holdout_ids.txt, gender_holdout_ids.txt
 data/raw/                         original workbook, not committed
 call_labeling/                    task 1
   run_labeling.py                 command line
@@ -108,7 +124,7 @@ call_labeling/                    task 1
   label_one_call.py               one record, including the fallback path
   input_records.py                JSONL loading; drops every non-input field
   transcript_text.py              whitespace normalisation and turn splitting
-customer_gender/                  task 2 (scaffold)
+customer_gender/                  task 2
 evaluation/                       scoring; imported by neither task
 tests/labeling/                   resolver, rules, one-call path, guardrails, synthetic calls
 tests/gender/

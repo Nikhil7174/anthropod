@@ -5,7 +5,7 @@ N ?= 10
 PROVIDER ?= cerebras
 MODEL ?=
 
-.PHONY: setup test smoke dev holdout predict synthetic
+.PHONY: setup test smoke dev holdout predict synthetic gender
 
 setup:
 	python3.11 -m venv .venv && $(PY) -m pip install -r requirements.txt
@@ -28,6 +28,11 @@ holdout:  ## task 1, once, after the prompts are frozen
 predict:  ## task 1 submission file
 	$(PY) -m call_labeling.run_labeling --input data/calls_input.jsonl --output outputs/labeling_predictions.jsonl --provider $(PROVIDER) $(if $(MODEL),--model $(MODEL),)
 	$(PY) -m evaluation.eval_labeling --pred outputs/labeling_predictions.jsonl
+
+gender:  ## task 2, rules only, no model API
+	$(PY) -m customer_gender.run_gender --input data/calls_input.jsonl --output outputs/gender_predictions.jsonl
+	$(PY) -m evaluation.eval_gender --pred outputs/gender_predictions.jsonl --gold customer_gender/gender_labels_manual.jsonl
+	$(PY) -m evaluation.eval_gender --pred outputs/gender_predictions.jsonl --gold customer_gender/gender_labels_manual.jsonl --split holdout
 
 synthetic:  ## task 1 rare labels absent from the supplied sample
 	$(PY) -m call_labeling.run_labeling --input tests/labeling/synthetic_calls/calls_input.jsonl --output outputs/runs/synthetic.jsonl --provider $(PROVIDER) $(if $(MODEL),--model $(MODEL),)

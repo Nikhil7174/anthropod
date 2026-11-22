@@ -1,5 +1,5 @@
-"""Task 2: identify the customer's gender from a transcript, without a transformer model.
+"""Task 2: infer the caller's gender from speech cues, without a transformer model.
 
-Not implemented yet. The modules in this package are the intended boundaries:
-speaker turns, cue lists, and a weighted scoring cascade.
+The customer is the person labeled Customer, not the patient. Cue families vote
+male, female, or abstain. A thin or mixed vote stays unknown.
 """
